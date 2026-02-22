@@ -1,0 +1,131 @@
+/* pages/Dashboard.css */
+.dashboard-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f5f5f5;
+}
+
+.dashboard-content {
+  flex: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  width: 100%;
+}
+
+.dashboard-header {
+  margin-bottom: 40px;
+}
+
+.dashboard-header h1 {
+  font-size: 32px;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.dashboard-header p {
+  color: #666;
+  font-size: 16px;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 20px;
+}
+
+.dashboard-section {
+  background: white;
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.dashboard-section.full-width {
+  grid-column: 1 / -1;
+}
+
+.dashboard-section h2 {
+  font-size: 24px;
+  color: #333;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #667eea;
+}
+.empty-state {
+text-align: center;
+padding: 40px 20px;
+color: #999;
+}
+.empty-state p {
+margin: 10px 0;
+}
+.drugs-list {
+display: flex;
+flex-direction: column;
+gap: 15px;
+}
+.drug-card {
+padding: 20px;
+border: 1px solid #e0e0e0;
+border-radius: 8px;
+transition: box-shadow 0.3s;
+}
+.drug-card:hover {
+box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+.drug-card h3 {
+font-size: 18px;
+color: #333;
+margin-bottom: 5px;
+}
+.generic-name {
+color: #666;
+font-size: 14px;
+margin-bottom: 15px;
+}
+.drug-info {
+display: flex;
+justify-content: space-between;
+align-items: center;
+}
+.patent-status {
+padding: 5px 10px;
+background: #e3f2fd;
+color: #1976d2;
+border-radius: 5px;
+font-size: 12px;
+font-weight: 600;
+}
+.savings {
+color: #4caf50;
+font-weight: 600;
+font-size: 14px;
+}
+.savings-summary {
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+gap: 20px;
+}
+.savings-card {
+text-align: center;
+padding: 30px;
+background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+color: white;
+border-radius: 10px;
+}
+.savings-card h3 {
+font-size: 36px;
+margin-bottom: 10px;
+}
+.savings-card p {
+font-size: 14px;
+opacity: 0.9;
+}
+.loading {
+text-align: center;
+padding: 100px 20px;
+font-size: 18px;
+color: #666;
+}
