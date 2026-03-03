@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import DiseaseSearch from './pages/DiseaseSearch';
 import About from './pages/About';
 import DrugSearch from './pages/DrugSearch';
+import Predictions from './pages/Predictions';
 
 // Protected Route Component
 function ProtectedRoute({ children }) {
@@ -29,6 +30,7 @@ function App() {
         <Route path="/disease-search" element={<DiseaseSearch />} />
         <Route path="/about" element={<About />} />
         <Route path="/drug-search" element={<DrugSearch />} />
+        <Route path="/predictions" element={<Predictions />} />
         <Route 
           path="/dashboard" 
           element={

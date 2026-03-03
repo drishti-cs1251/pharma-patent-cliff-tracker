@@ -53,4 +53,27 @@ export const getDrugDetails = async (drugId) => {
   return response.data;
 };
 
+// ── ML / Predictions API (Dishita's Flask server) ──
+const ML_API = axios.create({
+  baseURL: 'http://localhost:8000',  // ask Dishita for her Flask port
+  headers: { 'Content-Type': 'application/json' },
+});
+
+// Send drug data → get prediction back
+export const predictGenericLaunch = async (drugData) => {
+  const response = await ML_API.post('/predict', drugData);
+  return response.data;
+};
+
+// Get all model insights/stats (for visualizations)
+export const getModelInsights = async () => {
+  const response = await ML_API.get('/insights');
+  return response.data;
+};
+
+// Get predictions for multiple drugs at once
+export const getBatchPredictions = async (drugs) => {
+  const response = await ML_API.post('/predict/batch', { drugs });
+  return response.data;
+};
 export default api;
