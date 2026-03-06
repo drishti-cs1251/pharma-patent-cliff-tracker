@@ -3,13 +3,15 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { login } from '../../services/api';
 import './Auth.css';
+import { useAuth } from '../context/AuthContext';
+
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
+  const { login } = useAuth();
   // Validation states
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
@@ -50,16 +52,12 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const data = await login(email, password);
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('userEmail', email);
-      navigate('/dashboard');
-    } catch (err) {
-      setError(err.response?.data?.error || 'Login failed. Please check your credentials.');
-    } finally {
-      setLoading(false);
-    }
-  };
+    const data = await loginUser(email, password);
+    login(data.token, data.user);
+    navigate('/');   
+  } catch (err) {
+    setError(err.response?.data?.error || 'Login failed');
+  }
 
   return (
     <div className="auth-form login-form">

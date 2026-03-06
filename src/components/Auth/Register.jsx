@@ -3,13 +3,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { register } from '../../services/api';
 import './Auth.css';
+import { useAuth } from '../context/AuthContext';
 export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
+  const { login } = useAuth();
   // Validation states
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
@@ -68,9 +69,7 @@ export default function Register() {
 
     try {
       await register(email, password);
-      localStorage.setItem('registeredEmail', email);
-      alert('Registration successful! Please login.');
-      // After successful registration, login
+      login(data.token, data.user);
       navigate('/login');
     } catch (err) {
       setError(err.response?.data?.error || 'Registration failed. Please try again.');
