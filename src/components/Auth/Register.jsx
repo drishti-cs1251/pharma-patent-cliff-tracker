@@ -1,30 +1,27 @@
 // components/Auth/Register.jsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { register } from '../../services/api';
+import { registerUser } from '../../services/authService';
+import { useAuth } from '../../context/AuthContext';
 import './Auth.css';
-import { useAuth } from '../context/AuthContext';
+
 export default function Register() {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
-  // Validation states
+  const [nameTouched, setNameTouched] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
   const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false);
-
   const navigate = useNavigate();
 
-  // Email validation
-  const isEmailValid = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
+  const isNameValid = name.trim().length >= 2;
+  const isEmailValid = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  // Password validation rules
   const passwordRules = {
     minLength: password.length >= 8,
     hasUpperCase: /[A-Z]/.test(password),
@@ -35,42 +32,27 @@ export default function Register() {
 
   const isPasswordValid = Object.values(passwordRules).every(rule => rule);
   const doPasswordsMatch = password === confirmPassword && confirmPassword.length > 0;
-
-  // Check if form is valid
-  const isFormValid = isEmailValid(email) && isPasswordValid && doPasswordsMatch;
+  const isFormValid = isNameValid && isEmailValid(email) && isPasswordValid && doPasswordsMatch;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
-    // Mark all fields as touched
+    setNameTouched(true);
     setEmailTouched(true);
     setPasswordTouched(true);
     setConfirmPasswordTouched(true);
 
-    // Final validation
-    if (!isEmailValid(email)) {
-      setError('Please enter a valid email address');
-      return;
-    }
-
-    if (!isPasswordValid) {
-      setError('Password does not meet requirements');
-      return;
-    }
-
-    if (!doPasswordsMatch) {
-      setError('Passwords do not match');
-      return;
-    }
-    
+    if (!isNameValid) { setError('Name must be at least 2 characters'); return; }
+    if (!isEmailValid(email)) { setError('Please enter a valid email address'); return; }
+    if (!isPasswordValid) { setError('Password does not meet requirements'); return; }
+    if (!doPasswordsMatch) { setError('Passwords do not match'); return; }
 
     setLoading(true);
-
     try {
-      await register(email, password);
+      const data = await registerUser(name, email, password);
+      // data = { success: true, token, user: {id, name, email, role} }
       login(data.token, data.user);
-      navigate('/login');
+      navigate('/');
     } catch (err) {
       setError(err.response?.data?.error || 'Registration failed. Please try again.');
     } finally {
@@ -79,11 +61,33 @@ export default function Register() {
   };
 
   return (
-  <div className="auth-form register-form">
+    <div className="auth-form register-form">
       <h2>Create Account</h2>
       {error && <div className="error-message">{error}</div>}
-      
+
       <form onSubmit={handleSubmit}>
+
+        {/* Name Field */}
+        <div className="form-group">
+          <label htmlFor="name">Full Name *</label>
+          <input
+            id="name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => setNameTouched(true)}
+            onFocus={() => setNameTouched(true)}
+            required
+            placeholder="Enter your full name"
+            className={nameTouched && !isNameValid ? 'invalid' : ''}
+          />
+          {nameTouched && !isNameValid && name.length > 0 && (
+            <div className="validation-popup invalid">
+              <div className="validation-item">✗ Name must be at least 2 characters</div>
+            </div>
+          )}
+        </div>
+
         {/* Email Field */}
         <div className="form-group">
           <label htmlFor="email">Email Address *</label>
@@ -98,8 +102,6 @@ export default function Register() {
             placeholder="Enter your email"
             className={emailTouched && !isEmailValid(email) ? 'invalid' : ''}
           />
-          
-          {/* Email validation popup */}
           {emailTouched && (
             <div className={`validation-popup ${isEmailValid(email) ? 'valid' : 'invalid'}`}>
               <div className="validation-item">
@@ -123,8 +125,6 @@ export default function Register() {
             placeholder="Create a strong password"
             className={passwordTouched && !isPasswordValid ? 'invalid' : ''}
           />
-          
-          {/* Password validation popup */}
           {passwordTouched && (
             <div className={`validation-popup ${isPasswordValid ? 'valid' : 'invalid'}`}>
               <div className="validation-title">Password must contain:</div>
@@ -161,8 +161,6 @@ export default function Register() {
             placeholder="Re-enter your password"
             className={confirmPasswordTouched && !doPasswordsMatch ? 'invalid' : ''}
           />
-          
-          {/* Confirm password validation popup */}
           {confirmPasswordTouched && confirmPassword.length > 0 && (
             <div className={`validation-popup ${doPasswordsMatch ? 'valid' : 'invalid'}`}>
               <div className="validation-item">
@@ -172,8 +170,8 @@ export default function Register() {
           )}
         </div>
 
-        <button 
-          type="submit" 
+        <button
+          type="submit"
           disabled={loading || !isFormValid}
           className={!isFormValid ? 'disabled' : ''}
         >

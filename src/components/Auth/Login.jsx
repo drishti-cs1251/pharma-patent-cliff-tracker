@@ -1,10 +1,9 @@
 // components/Auth/Login.jsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { login } from '../../services/api';
+import { loginUser } from '../../services/authService';
+import { useAuth } from '../../context/AuthContext';
 import './Auth.css';
-import { useAuth } from '../context/AuthContext';
-
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -12,60 +11,47 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
-  // Validation states
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
-  
   const navigate = useNavigate();
 
-  // Email validation
-  const isEmailValid = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
-  // For login, we just check if password is not empty (server will validate)
+  const isEmailValid = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const isPasswordValid = password.length >= 8;
-
-  // Check if form is valid
   const isFormValid = isEmailValid(email) && isPasswordValid;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
-    // Mark fields as touched
     setEmailTouched(true);
     setPasswordTouched(true);
 
-    // Validation
     if (!isEmailValid(email)) {
       setError('Please enter a valid email address');
       return;
     }
-
     if (!isPasswordValid) {
       setError('Password must be at least 8 characters');
       return;
     }
 
     setLoading(true);
-
     try {
-    const data = await loginUser(email, password);
-    login(data.token, data.user);
-    navigate('/');   
-  } catch (err) {
-    setError(err.response?.data?.error || 'Login failed');
-  }
+      const data = await loginUser(email, password);
+      login(data.token, data.user);
+      navigate('/');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="auth-form login-form">
       <h2>Welcome Back</h2>
       {error && <div className="error-message">{error}</div>}
-      
+
       <form onSubmit={handleSubmit}>
-        {/* Email Field */}
         <div className="form-group">
           <label htmlFor="email">Email Address</label>
           <input
@@ -79,18 +65,13 @@ export default function Login() {
             placeholder="Enter your email"
             className={emailTouched && !isEmailValid(email) ? 'invalid' : ''}
           />
-          
-          {/* Email validation popup */}
           {emailTouched && !isEmailValid(email) && email.length > 0 && (
             <div className="validation-popup invalid">
-              <div className="validation-item">
-                ✗ Please enter a valid email address
-              </div>
+              <div className="validation-item">✗ Please enter a valid email address</div>
             </div>
           )}
         </div>
 
-        {/* Password Field */}
         <div className="form-group">
           <label htmlFor="password">Password</label>
           <input
@@ -104,19 +85,15 @@ export default function Login() {
             placeholder="Enter your password"
             className={passwordTouched && !isPasswordValid ? 'invalid' : ''}
           />
-          
-          {/* Password validation popup */}
           {passwordTouched && !isPasswordValid && password.length > 0 && (
             <div className="validation-popup invalid">
-              <div className="validation-item">
-                ✗ Password must be at least 8 characters
-              </div>
+              <div className="validation-item">✗ Password must be at least 8 characters</div>
             </div>
           )}
         </div>
 
-        <button 
-          type="submit" 
+        <button
+          type="submit"
           disabled={loading || !isFormValid}
           className={!isFormValid ? 'disabled' : ''}
         >
