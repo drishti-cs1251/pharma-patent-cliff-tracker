@@ -1,4 +1,3 @@
-// App.js
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/Auth/LoginPage';
 import RegisterPage from './pages/Auth/RegisterPage';
@@ -7,16 +6,12 @@ import Dashboard from './pages/Dashboard';
 import DiseaseSearch from './pages/DiseaseSearch';
 import About from './pages/About';
 import DrugSearch from './pages/DrugSearch';
-import Predictions from './pages/Predictions';
+import EDAPage from './pages/EdaPage';           
+import Predictions from './pages/Predictions'; 
 
-// Protected Route Component
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem('token');
-  
-  if (!token) {
-    return <Navigate to="/login" replace />;
-  }
-  
+  if (!token) return <Navigate to="/login" replace />;
   return children;
 }
 
@@ -30,18 +25,18 @@ function App() {
         <Route path="/disease-search" element={<DiseaseSearch />} />
         <Route path="/about" element={<About />} />
         <Route path="/drug-search" element={<DrugSearch />} />
-        <Route path="/predictions" element={<Predictions />} />
-        <Route 
-          path="/dashboard" 
+        <Route path="/analytics" element={<EDAPage />} />           {/* ← NEW */}
+        <Route path="/predictions" element={<Predictions />} /> {/* ← NEW */}
+        <Route
+          path="/dashboard"
           element={
             <ProtectedRoute>
               <Dashboard />
             </ProtectedRoute>
-          } 
+          }
         />
       </Routes>
     </BrowserRouter>
   );
 }
-
 export default App;

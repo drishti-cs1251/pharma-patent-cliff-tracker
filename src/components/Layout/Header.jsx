@@ -31,8 +31,9 @@ export default function Header() {
             <>
               <a href="/login">Login</a>
               <a href="/register">Register</a>
-              <a href="/about">About</a>
+              <a href="/analytics">Analytics</a>
               <a href="/predictions">Predictions</a>
+              <a href="/about">About</a>
             </>
           )}
         </nav>

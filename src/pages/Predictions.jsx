@@ -1,375 +1,514 @@
-// src/pages/Predictions.jsx
-import { useState, useEffect } from 'react';
-import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, RadialBarChart, RadialBar
-} from 'recharts';
-import { predictGenericLaunch, getModelInsights } from '../services/api';
+// src/pages/PredictionsPage.jsx
+// Calls Flask /api/predict-expiry and /api/classify-status
+
+import { useState } from 'react';
 import Header from '../components/Layout/Header';
 import Footer from '../components/Layout/Footer';
 import './Predictions.css';
 
-// ── Fallback mock data (used until Dishita's API is ready) ──
-const MOCK_INSIGHTS = {
-  model_accuracy: 0.78,
-  total_drugs_tracked: 112,
-  avg_days_to_launch: 183,
-  category_breakdown: [
-    { category: 'Cholesterol', count: 22, avg_savings: 85 },
-    { category: 'Diabetes', count: 18, avg_savings: 72 },
-    { category: 'Blood Pressure', count: 24, avg_savings: 68 },
-    { category: 'Blood Thinners', count: 8, avg_savings: 90 },
-    { category: 'Respiratory', count: 14, avg_savings: 55 },
-    { category: 'Mental Health', count: 16, avg_savings: 63 },
-  ],
-  upcoming_cliffs: [
-    { drug: 'Eliquis', expiry: 'Mar 2026', savings: 87, category: 'Blood Thinners' },
-    { drug: 'Xarelto', expiry: 'Jul 2026', savings: 80, category: 'Blood Thinners' },
-    { drug: 'Jardiance', expiry: 'Aug 2026', savings: 74, category: 'Diabetes' },
-    { drug: 'Ozempic', expiry: 'Nov 2026', savings: 82, category: 'Diabetes' },
-    { drug: 'Entresto', expiry: 'Jan 2027', savings: 69, category: 'Heart' },
-  ],
-  monthly_predictions: [
-    { month: 'Jan 26', count: 3, savings_potential: 12 },
-    { month: 'Feb 26', count: 5, savings_potential: 28 },
-    { month: 'Mar 26', count: 8, savings_potential: 47 },
-    { month: 'Apr 26', count: 4, savings_potential: 19 },
-    { month: 'May 26', count: 6, savings_potential: 35 },
-    { month: 'Jun 26', count: 7, savings_potential: 41 },
-    { month: 'Jul 26', count: 11, savings_potential: 63 },
-    { month: 'Aug 26', count: 9, savings_potential: 52 },
-  ],
+const FLASK_URL = import.meta.env.VITE_FLASK_URL || 'http://localhost:5000';
+
+const CATEGORIES = ['Oral', 'Injectable', 'Respiratory', 'Topical', 'Other'];
+const APP_TYPES = [
+  { value: 'N', label: 'N — New Drug Application (Brand)' },
+  { value: 'A', label: 'A — Abbreviated (Generic / ANDA)' },
+];
+
+const MONTHS = [
+  'January','February','March','April','May','June',
+  'July','August','September','October','November','December'
+];
+
+// --- Sub-component: Result Card ---
+const PredictionResult = ({ result }) => {
+  if (!result) return null;
+  const expiry = new Date(result.predicted_expiry_date);
+  const today = new Date();
+  const daysLeft = Math.round((expiry - today) / (1000 * 60 * 60 * 24));
+  const isExpired = daysLeft < 0;
+
+  return (
+    <div className={`pred-result ${isExpired ? 'expired' : 'active'}`}>
+      <div className="pred-result-header">
+        <div className="pred-result-icon">{isExpired ? '⏰' : '📅'}</div>
+        <div>
+          <div className="pred-result-title">
+            {isExpired ? 'Patent Likely Expired' : 'Predicted Expiry Date'}
+          </div>
+          <div className="pred-result-date">{expiry.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+        </div>
+        <div className={`pred-status-badge ${isExpired ? 'badge-expired' : 'badge-active'}`}>
+          {isExpired ? 'EXPIRED' : 'ACTIVE'}
+        </div>
+      </div>
+
+      <div className="pred-result-grid">
+        <div className="pred-metric">
+          <div className="pred-metric-val">{result.predicted_lifetime_years} yrs</div>
+          <div className="pred-metric-label">Predicted Patent Lifetime</div>
+        </div>
+        <div className="pred-metric">
+          <div className="pred-metric-val">{isExpired ? `${Math.abs(daysLeft)}d ago` : `${daysLeft}d`}</div>
+          <div className="pred-metric-label">{isExpired ? 'Expired' : 'Until Expiry'}</div>
+        </div>
+        <div className="pred-metric">
+          <div className="pred-metric-val">{result.confidence_level}</div>
+          <div className="pred-metric-label">Confidence Level</div>
+        </div>
+        <div className="pred-metric">
+          <div className="pred-metric-val">±{Math.round(result.confidence_interval_days / 365 * 10) / 10} yrs</div>
+          <div className="pred-metric-label">Margin of Error</div>
+        </div>
+      </div>
+
+      {!isExpired && (
+        <div className="pred-generic-estimate">
+          <div className="generic-est-label">🚀 Estimated Generic Availability</div>
+          <div className="generic-est-date">
+            {new Date(expiry.getTime() + 180 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+          </div>
+          <div className="generic-est-sub">~6 months after patent expiry (FDA approval avg)</div>
+        </div>
+      )}
+
+      {isExpired && (
+        <div className="pred-generic-available">
+          <div className="ga-icon">✅</div>
+          <div>
+            <strong>Generic may already be available!</strong>
+            <p>This patent appears to have expired. Check your pharmacy or FDA Orange Book for available generics.</p>
+          </div>
+        </div>
+      )}
+
+      <div className="pred-disclaimer">
+        ⚠️ {result.note}. Always verify with official FDA data.
+      </div>
+    </div>
+  );
 };
 
-const CHART_COLORS = ['#667eea', '#764ba2', '#27ae60', '#e67e22', '#e74c3c', '#3498db'];
+// --- Sub-component: Classify Result ---
+const ClassifyResult = ({ result }) => {
+  if (!result) return null;
+  return (
+    <div className={`pred-result ${result.is_expired ? 'expired' : 'active'}`}>
+      <div className="pred-result-header">
+        <div className="pred-result-icon">{result.is_expired ? '⏰' : '✅'}</div>
+        <div>
+          <div className="pred-result-title">Patent Classification Result</div>
+          <div className="pred-result-date">
+            Status: <strong>{result.status}</strong>
+          </div>
+        </div>
+        <div className={`pred-status-badge ${result.is_expired ? 'badge-expired' : 'badge-active'}`}>
+          {result.status.toUpperCase()}
+        </div>
+      </div>
+      <div className="pred-result-grid">
+        <div className="pred-metric">
+          <div className="pred-metric-val">{result.confidence_percent}%</div>
+          <div className="pred-metric-label">Model Confidence</div>
+        </div>
+        <div className="pred-metric">
+          <div className="pred-metric-val">{result.is_expired ? 'Generic Likely' : 'Brand Protected'}</div>
+          <div className="pred-metric-label">Market Implication</div>
+        </div>
+      </div>
+      {result.is_expired && (
+        <div className="pred-generic-available">
+          <div className="ga-icon">💰</div>
+          <div>
+            <strong>Savings opportunity detected!</strong>
+            <p>This patent is classified as expired — a generic alternative may be available at 20–90% lower cost.</p>
+          </div>
+        </div>
+      )}
+      <div className="pred-disclaimer">
+        ⚠️ ML classification — verify with FDA Orange Book for official status.
+      </div>
+    </div>
+  );
+};
 
+// ============================================================
 export default function Predictions() {
-  const [insights, setInsights] = useState(null);
-  const [insightsLoading, setInsightsLoading] = useState(true);
-  const [insightsError, setInsightsError] = useState(false);
+  const [activeTab, setActiveTab] = useState('predict');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Test form state
-  const [form, setForm] = useState({
-    drug_name: '',
-    patent_expiry: '',
-    category: 'Cholesterol',
+  // Predict Expiry form state
+  const [predictForm, setPredictForm] = useState({
+    approval_year: new Date().getFullYear(),
+    approval_month: 1,
+    app_type: 'N',
+    category: 'Oral',
   });
-  const [prediction, setPrediction] = useState(null);
-  const [predicting, setPredicting] = useState(false);
-  const [predError, setPredError] = useState('');
+  const [predictResult, setPredictResult] = useState(null);
 
-  useEffect(() => {
-    loadInsights();
-  }, []);
+  // Classify form state
+  const today = new Date();
+  const [classifyForm, setClassifyForm] = useState({
+    expiry_year: today.getFullYear() + 5,
+    expiry_month: today.getMonth() + 1,
+    expiry_day: today.getDate(),
+    patent_lifetime_days: 7300,
+    days_from_today: 1825,
+  });
+  const [classifyResult, setClassifyResult] = useState(null);
 
-  const loadInsights = async () => {
+  const handlePredictSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setPredictResult(null);
+
     try {
-      const data = await getModelInsights();
-      setInsights(data);
-    } catch {
-      // Dishita's API not running yet — use mock
-      setInsights(MOCK_INSIGHTS);
-      setInsightsError(true);
+      const res = await fetch(`${FLASK_URL}/api/predict-expiry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          approval_year: parseInt(predictForm.approval_year),
+          approval_month: parseInt(predictForm.approval_month),
+          app_type: predictForm.app_type,
+          category: predictForm.category,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Prediction failed');
+      setPredictResult(data.prediction);
+    } catch (err) {
+      setError(`Could not reach Flask ML backend: ${err.message}. Make sure Flask is running on port 5000.`);
     } finally {
-      setInsightsLoading(false);
+      setLoading(false);
     }
   };
 
-  const handlePredict = async (e) => {
+  const handleClassifySubmit = async (e) => {
     e.preventDefault();
-    if (!form.drug_name || !form.patent_expiry) {
-      setPredError('Please fill in all fields');
-      return;
-    }
-    setPredicting(true);
-    setPredError('');
-    setPrediction(null);
+    setLoading(true);
+    setError(null);
+    setClassifyResult(null);
+
+    // Auto-calc days_from_today from expiry date
+    const expiry = new Date(classifyForm.expiry_year, classifyForm.expiry_month - 1, classifyForm.expiry_day);
+    const daysFromToday = Math.round((expiry - today) / (1000 * 60 * 60 * 24));
 
     try {
-      const result = await predictGenericLaunch(form);
-      setPrediction(result);
-    } catch {
-      // Mock prediction while Flask isn't running
-      const mockDays = Math.floor(Math.random() * 120) + 150;
-      const launch = new Date(form.patent_expiry);
-      launch.setDate(launch.getDate() + mockDays);
-      setPrediction({
-        drug_name: form.drug_name,
-        predicted_launch_date: launch.toISOString().split('T')[0],
-        confidence: (Math.random() * 0.2 + 0.7).toFixed(2),
-        predicted_price_drop: Math.floor(Math.random() * 30) + 60,
-        days_until_generic: mockDays,
+      const res = await fetch(`${FLASK_URL}/api/classify-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expiry_year: parseInt(classifyForm.expiry_year),
+          expiry_month: parseInt(classifyForm.expiry_month),
+          expiry_day: parseInt(classifyForm.expiry_day),
+          patent_lifetime_days: parseInt(classifyForm.patent_lifetime_days),
+          days_from_today: daysFromToday,
+        }),
       });
-      setPredError('⚠️ Using mock prediction — connect Dishita\'s Flask API for real results');
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Classification failed');
+      setClassifyResult(data.result);
+    } catch (err) {
+      setError(`Could not reach Flask ML backend: ${err.message}. Make sure Flask is running on port 5000.`);
     } finally {
-      setPredicting(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="predictions-page">
+    <div className="pred-page">
       <Header />
 
-      <main className="predictions-content">
-
-        {/* ── Page Header ── */}
-        <div className="pred-page-header">
-          <div className="pred-header-text">
-            <span className="pred-label">AI-Powered</span>
-            <h1>Generic Drug Predictions</h1>
-            <p>Dishita's Random Forest model predicts when brand-name drugs will have cheaper generic alternatives</p>
-          </div>
-          <div className="model-accuracy-badge">
-            <div className="accuracy-ring">
-              <span className="accuracy-value">{insights ? Math.round(insights.model_accuracy * 100) : '--'}%</span>
-              <span className="accuracy-label">Model Accuracy</span>
-            </div>
+      <main className="pred-main">
+        {/* Hero */}
+        <div className="pred-hero">
+          <div className="pred-hero-badge">🤖 ML-Powered</div>
+          <h1 className="pred-title">Patent Predictions</h1>
+          <p className="pred-subtitle">
+            Two AI models at your service — predict when a patent will expire, or classify if one is already expired
+          </p>
+          <div className="pred-model-pills">
+            <span className="model-pill green">✅ Binary Classifier — 100% accuracy</span>
+            <span className="model-pill yellow">📊 Regressor — ±2.83yr MAE</span>
           </div>
         </div>
 
-        {/* ── Stats Row ── */}
-        {insights && (
-          <div className="stats-row">
-            <div className="stat-box">
-              <span className="stat-num">{insights.total_drugs_tracked}</span>
-              <span className="stat-desc">Drugs Tracked</span>
-            </div>
-            <div className="stat-box">
-              <span className="stat-num">{insights.avg_days_to_launch}d</span>
-              <span className="stat-desc">Avg Days to Generic Launch</span>
-            </div>
-            <div className="stat-box">
-              <span className="stat-num">{insights.upcoming_cliffs?.length}</span>
-              <span className="stat-desc">Upcoming Patent Cliffs</span>
-            </div>
-            <div className="stat-box highlight">
-              <span className="stat-num">$50B+</span>
-              <span className="stat-desc">Estimated Patient Savings</span>
+        {/* How It Works */}
+        <div className="pred-how">
+          <div className="how-step">
+            <div className="how-num">1</div>
+            <div>Choose a prediction type below</div>
+          </div>
+          <div className="how-arrow">→</div>
+          <div className="how-step">
+            <div className="how-num">2</div>
+            <div>Fill in drug approval details</div>
+          </div>
+          <div className="how-arrow">→</div>
+          <div className="how-step">
+            <div className="how-num">3</div>
+            <div>Get instant AI prediction</div>
+          </div>
+          <div className="how-arrow">→</div>
+          <div className="how-step">
+            <div className="how-num">4</div>
+            <div>Discover savings potential</div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="pred-tabs">
+          <button
+            className={`pred-tab ${activeTab === 'predict' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('predict'); setError(null); setPredictResult(null); }}
+          >
+            📅 Predict Expiry Date
+            <span className="tab-sub">Random Forest Regressor</span>
+          </button>
+          <button
+            className={`pred-tab ${activeTab === 'classify' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('classify'); setError(null); setClassifyResult(null); }}
+          >
+            🔍 Classify Patent Status
+            <span className="tab-sub">Gradient Boosting Classifier</span>
+          </button>
+        </div>
+
+        {error && (
+          <div className="pred-error">
+            <strong>⚠️ Backend Error</strong>
+            <p>{error}</p>
+            <div className="error-help">
+              <strong>To fix:</strong> Run <code>python app.py</code> in your Flask directory, then refresh.
+              Make sure <code>VITE_FLASK_URL=http://localhost:5000</code> is in your <code>.env</code>.
             </div>
           </div>
         )}
 
-        {insightsError && (
-          <div className="api-warning">
-            ⚠️ Showing mock data — Dishita's Flask API at <code>localhost:8000</code> is not running yet
-          </div>
-        )}
+        <div className="pred-content">
 
-        <div className="predictions-grid">
-
-          {/* ── LEFT: Test the Model ── */}
-          <section className="pred-card test-card">
-            <div className="card-header">
-              <h2>🧪 Test the Model</h2>
-              <p>Enter a drug's details to get a generic launch prediction</p>
-            </div>
-
-            <form onSubmit={handlePredict} className="pred-form">
-              <div className="pred-form-group">
-                <label>Drug Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Eliquis, Ozempic"
-                  value={form.drug_name}
-                  onChange={e => setForm({ ...form, drug_name: e.target.value })}
-                  className="pred-input"
-                />
-              </div>
-
-              <div className="pred-form-group">
-                <label>Patent Expiry Date</label>
-                <input
-                  type="date"
-                  value={form.patent_expiry}
-                  onChange={e => setForm({ ...form, patent_expiry: e.target.value })}
-                  className="pred-input"
-                />
-              </div>
-
-              <div className="pred-form-group">
-                <label>Drug Category</label>
-                <select
-                  value={form.category}
-                  onChange={e => setForm({ ...form, category: e.target.value })}
-                  className="pred-input"
-                >
-                  {['Cholesterol', 'Diabetes', 'Blood Pressure', 'Blood Thinners',
-                    'Respiratory', 'Mental Health', 'Heart', 'Other'].map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-
-              {predError && <p className="pred-error">{predError}</p>}
-
-              <button type="submit" className="pred-submit-btn" disabled={predicting}>
-                {predicting ? <><span className="btn-spin" /> Predicting...</> : '🤖 Run Prediction'}
-              </button>
-            </form>
-
-            {/* Prediction Result */}
-            {prediction && (
-              <div className="prediction-result">
-                <div className="result-header">
-                  <span className="result-drug">{prediction.drug_name}</span>
-                  <span className="result-confidence">
-                    {Math.round(prediction.confidence * 100)}% confident
-                  </span>
-                </div>
-
-                <div className="result-grid">
-                  <div className="result-item">
-                    <span className="result-label">Predicted Launch</span>
-                    <span className="result-value green">
-                      {new Date(prediction.predicted_launch_date).toLocaleDateString('en-US', {
-                        month: 'long', year: 'numeric'
-                      })}
-                    </span>
-                  </div>
-                  <div className="result-item">
-                    <span className="result-label">Days Until Generic</span>
-                    <span className="result-value blue">{prediction.days_until_generic} days</span>
-                  </div>
-                  <div className="result-item">
-                    <span className="result-label">Expected Price Drop</span>
-                    <span className="result-value purple">{prediction.predicted_price_drop}%</span>
-                  </div>
-                </div>
-
-                {/* Confidence bar */}
-                <div className="confidence-bar-wrap">
-                  <span>Model Confidence</span>
-                  <div className="confidence-bar">
-                    <div
-                      className="confidence-fill"
-                      style={{ width: `${prediction.confidence * 100}%` }}
-                    />
-                  </div>
-                  <span>{Math.round(prediction.confidence * 100)}%</span>
-                </div>
-              </div>
-            )}
-          </section>
-
-          {/* ── RIGHT: Upcoming Patent Cliffs ── */}
-          <section className="pred-card cliff-card">
-            <div className="card-header">
-              <h2>📅 Upcoming Patent Cliffs</h2>
-              <p>High-savings drugs expiring in 2026–2027</p>
-            </div>
-            <div className="cliff-list">
-              {insights?.upcoming_cliffs?.map((drug, i) => (
-                <div key={i} className="cliff-item">
-                  <div className="cliff-left">
-                    <span className="cliff-name">{drug.drug}</span>
-                    <span className="cliff-category">{drug.category}</span>
-                  </div>
-                  <div className="cliff-right">
-                    <span className="cliff-expiry">{drug.expiry}</span>
-                    <div className="cliff-savings-bar">
-                      <div
-                        className="cliff-savings-fill"
-                        style={{ width: `${drug.savings}%` }}
+          {/* PREDICT EXPIRY */}
+          {activeTab === 'predict' && (
+            <div className="pred-two-col">
+              <div className="pred-form-card">
+                <h2>Predict Patent Expiry</h2>
+                <p className="form-desc">Enter drug approval details and our Random Forest model will estimate when the patent will expire.</p>
+                <form onSubmit={handlePredictSubmit} className="pred-form">
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Approval Year</label>
+                      <input
+                        type="number"
+                        min="1980"
+                        max="2025"
+                        value={predictForm.approval_year}
+                        onChange={e => setPredictForm(f => ({ ...f, approval_year: e.target.value }))}
+                        required
                       />
                     </div>
-                    <span className="cliff-savings-pct">{drug.savings}% savings</span>
+                    <div className="form-group">
+                      <label>Approval Month</label>
+                      <select
+                        value={predictForm.approval_month}
+                        onChange={e => setPredictForm(f => ({ ...f, approval_month: e.target.value }))}
+                      >
+                        {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+                      </select>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </section>
 
-          {/* ── CHART 1: Monthly Predictions Timeline ── */}
-          <section className="pred-card chart-card wide">
-            <div className="card-header">
-              <h2>📈 Generic Launch Timeline</h2>
-              <p>Number of generics predicted to launch per month</p>
-            </div>
-            <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={insights?.monthly_predictions}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip
-                  contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0' }}
-                />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="count"
-                  name="Predicted Launches"
-                  stroke="#667eea"
-                  strokeWidth={3}
-                  dot={{ fill: '#667eea', r: 5 }}
-                  activeDot={{ r: 7 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="savings_potential"
-                  name="Savings Potential ($B)"
-                  stroke="#27ae60"
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                  dot={{ fill: '#27ae60', r: 4 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </section>
+                  <div className="form-group">
+                    <label>Application Type</label>
+                    <div className="radio-group">
+                      {APP_TYPES.map(t => (
+                        <label key={t.value} className={`radio-card ${predictForm.app_type === t.value ? 'selected' : ''}`}>
+                          <input
+                            type="radio"
+                            name="app_type"
+                            value={t.value}
+                            checked={predictForm.app_type === t.value}
+                            onChange={e => setPredictForm(f => ({ ...f, app_type: e.target.value }))}
+                          />
+                          {t.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
 
-          {/* ── CHART 2: Savings by Drug Category ── */}
-          <section className="pred-card chart-card">
-            <div className="card-header">
-              <h2>💊 Avg Savings by Category</h2>
-              <p>Expected price drop % when generics launch</p>
-            </div>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={insights?.category_breakdown} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 12 }} unit="%" />
-                <YAxis dataKey="category" type="category" tick={{ fontSize: 12 }} width={100} />
-                <Tooltip
-                  formatter={(v) => `${v}%`}
-                  contentStyle={{ borderRadius: 10 }}
-                />
-                <Bar dataKey="avg_savings" name="Avg Savings %" radius={[0, 6, 6, 0]}>
-                  {insights?.category_breakdown?.map((_, i) => (
-                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </section>
+                  <div className="form-group">
+                    <label>Drug Category</label>
+                    <div className="cat-grid">
+                      {CATEGORIES.map(cat => (
+                        <button
+                          key={cat}
+                          type="button"
+                          className={`cat-btn ${predictForm.category === cat ? 'selected' : ''}`}
+                          onClick={() => setPredictForm(f => ({ ...f, category: cat }))}
+                        >
+                          {cat === 'Oral' ? '💊' : cat === 'Injectable' ? '💉' : cat === 'Respiratory' ? '🫁' : cat === 'Topical' ? '🧴' : '📦'} {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-          {/* ── CHART 3: Drug Count by Category (Pie) ── */}
-          <section className="pred-card chart-card">
-            <div className="card-header">
-              <h2>🥧 Drugs by Category</h2>
-              <p>Distribution of tracked drugs</p>
-            </div>
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie
-                  data={insights?.category_breakdown}
-                  dataKey="count"
-                  nameKey="category"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={90}
-                  label={({ category, percent }) =>
-                    `${category} ${(percent * 100).toFixed(0)}%`
-                  }
-                  labelLine={false}
-                >
-                  {insights?.category_breakdown?.map((_, i) => (
-                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v, name) => [`${v} drugs`, name]} />
-              </PieChart>
-            </ResponsiveContainer>
-          </section>
+                  <button type="submit" className="pred-submit-btn" disabled={loading}>
+                    {loading ? (
+                      <><span className="btn-spinner" /> Running Model...</>
+                    ) : (
+                      '🔮 Predict Expiry Date'
+                    )}
+                  </button>
+                </form>
+              </div>
 
+              <div className="pred-result-col">
+                {predictResult ? (
+                  <PredictionResult result={predictResult} />
+                ) : (
+                  <div className="pred-empty">
+                    <div className="pred-empty-icon">🔮</div>
+                    <p>Fill in the form and click <strong>Predict</strong> to see the ML model's output</p>
+                    <div className="pred-example-hint">
+                      <strong>Example:</strong> A brand-name oral drug approved in Jan 2015 — the model will estimate its expiry date and flag when a generic could become available.
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* CLASSIFY STATUS */}
+          {activeTab === 'classify' && (
+            <div className="pred-two-col">
+              <div className="pred-form-card">
+                <h2>Classify Patent Status</h2>
+                <p className="form-desc">Know the patent expiry date? Our Gradient Boosting classifier determines if it's Active or Expired with high confidence.</p>
+                <form onSubmit={handleClassifySubmit} className="pred-form">
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Patent Expiry Year</label>
+                      <input
+                        type="number"
+                        min="2020"
+                        max="2045"
+                        value={classifyForm.expiry_year}
+                        onChange={e => {
+                          const val = parseInt(e.target.value);
+                          const expiry = new Date(val, classifyForm.expiry_month - 1, classifyForm.expiry_day);
+                          const dft = Math.round((expiry - today) / (1000 * 60 * 60 * 24));
+                          setClassifyForm(f => ({ ...f, expiry_year: val, days_from_today: dft }));
+                        }}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Expiry Month</label>
+                      <select
+                        value={classifyForm.expiry_month}
+                        onChange={e => {
+                          const val = parseInt(e.target.value);
+                          const expiry = new Date(classifyForm.expiry_year, val - 1, classifyForm.expiry_day);
+                          const dft = Math.round((expiry - today) / (1000 * 60 * 60 * 24));
+                          setClassifyForm(f => ({ ...f, expiry_month: val, days_from_today: dft }));
+                        }}
+                      >
+                        {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Expiry Day</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="31"
+                        value={classifyForm.expiry_day}
+                        onChange={e => {
+                          const val = parseInt(e.target.value);
+                          const expiry = new Date(classifyForm.expiry_year, classifyForm.expiry_month - 1, val);
+                          const dft = Math.round((expiry - today) / (1000 * 60 * 60 * 24));
+                          setClassifyForm(f => ({ ...f, expiry_day: val, days_from_today: dft }));
+                        }}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Patent Lifetime (days)</label>
+                    <input
+                      type="number"
+                      min="365"
+                      max="10000"
+                      value={classifyForm.patent_lifetime_days}
+                      onChange={e => setClassifyForm(f => ({ ...f, patent_lifetime_days: e.target.value }))}
+                      required
+                    />
+                    <span className="field-hint">
+                      = {Math.round(classifyForm.patent_lifetime_days / 365 * 10) / 10} years — typical range: 5–20 years (1825–7300 days)
+                    </span>
+                  </div>
+
+                  <div className="classify-preview">
+                    <div className="preview-row">
+                      <span>Days from today to expiry:</span>
+                      <strong className={classifyForm.days_from_today < 0 ? 'neg' : 'pos'}>
+                        {classifyForm.days_from_today > 0 ? `+${classifyForm.days_from_today}` : classifyForm.days_from_today} days
+                        {classifyForm.days_from_today < 0 ? ' (already expired)' : ''}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <button type="submit" className="pred-submit-btn classify" disabled={loading}>
+                    {loading ? (
+                      <><span className="btn-spinner" /> Classifying...</>
+                    ) : (
+                      '🔍 Classify Patent Status'
+                    )}
+                  </button>
+                </form>
+              </div>
+
+              <div className="pred-result-col">
+                {classifyResult ? (
+                  <ClassifyResult result={classifyResult} />
+                ) : (
+                  <div className="pred-empty">
+                    <div className="pred-empty-icon">🔍</div>
+                    <p>Enter the known expiry date of a drug patent and the classifier will determine if it's <strong>Active</strong> or <strong>Expired</strong></p>
+                    <div className="pred-example-hint">
+                      <strong>Example:</strong> Eliquis patent expires March 2026 — the classifier will determine if generics are now legal to manufacture.
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Info section */}
+        <div className="pred-info-section">
+          <h3>About These Models</h3>
+          <div className="pred-info-grid">
+            <div className="pred-info-card">
+              <div className="info-icon">📊</div>
+              <h4>Random Forest Regressor</h4>
+              <p>Predicts patent lifetime in days from approval metadata. Trained on {1254} FDA-approved drugs. Mean Absolute Error: ±2.83 years.</p>
+              <div className="info-badge">predict-expiry endpoint</div>
+            </div>
+            <div className="pred-info-card">
+              <div className="info-icon">🎯</div>
+              <h4>Gradient Boosting Classifier</h4>
+              <p>Binary classification of Active vs Expired status. Uses expiry date and lifetime days as features. 100% test accuracy.</p>
+              <div className="info-badge">classify-status endpoint</div>
+            </div>
+            <div className="pred-info-card">
+              <div className="info-icon">💊</div>
+              <h4>Generic Launch Estimate</h4>
+              <p>After patent expiry, FDA approval for a generic takes ~180 days on average. We add this to predicted expiry for the earliest possible generic date.</p>
+              <div className="info-badge">180-day FDA rule</div>
+            </div>
+          </div>
         </div>
       </main>
 
