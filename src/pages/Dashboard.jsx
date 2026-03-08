@@ -44,7 +44,7 @@ export default function Dashboard() {
       
       <main className="dashboard-content">
         <div className="dashboard-header">
-          <h1>Welcome, {user?.email}!</h1>
+          <h1>Welcome, {user?.data?.name}!</h1>
           <p>Manage your medications and alerts</p>
         </div>
 

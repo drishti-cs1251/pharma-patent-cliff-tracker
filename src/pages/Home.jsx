@@ -53,33 +53,33 @@ export default function Home() {
 
         {/* Features Section */}
         <section className="features">
-          <h2>How It Works</h2>
-          <div className="features-grid">
-            <div className="feature-card">
-              <div className="feature-icon">🏥</div>
-              <h3>Search by Disease</h3>
-              <p>Select your condition and see all available medications with their alternatives</p>
-            </div>
-
-            <div className="feature-card">
-              <div className="feature-icon">💊</div>
-              <h3>Find Alternatives</h3>
-              <p>Search any drug and find cheaper alternatives with the same active ingredients</p>
-            </div>
-
-            <div className="feature-card">
-              <div className="feature-icon">🤖</div>
-              <h3>AI Predictions</h3>
-              <p>ML model predicts when expensive drugs will have generic alternatives</p>
-            </div>
-
-            <div className="feature-card">
-              <div className="feature-icon">💰</div>
-              <h3>Save Money</h3>
-              <p>Switch to generics and save up to 90% on prescription costs</p>
-            </div>
-          </div>
-        </section>
+  <div className="features-container">
+    <h2>How It Works</h2>
+    <p className="features-subtitle">Four simple steps to start saving on your medications</p>
+    <div className="features-grid">
+      <div className="feature-card">
+        <div className="feature-icon">🏥</div>
+        <h3>Search by Disease</h3>
+        <p>Select your condition and see all available medications with their alternatives</p>
+      </div>
+      <div className="feature-card">
+        <div className="feature-icon">💊</div>
+        <h3>Find Alternatives</h3>
+        <p>Search any drug and find cheaper alternatives with the same active ingredients</p>
+      </div>
+      <div className="feature-card">
+        <div className="feature-icon">🤖</div>
+        <h3>AI Predictions</h3>
+        <p>ML model predicts when expensive drugs will have generic alternatives</p>
+      </div>
+      <div className="feature-card">
+        <div className="feature-icon">💰</div>
+        <h3>Save Money</h3>
+        <p>Switch to generics and save up to 90% on prescription costs</p>
+      </div>
+    </div>
+  </div>
+</section>
 
         {/* CTA Section */}
         <section className="cta-section">

@@ -36,14 +36,16 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const data = await loginUser(email, password);
-      login(data.token, data.user);
-      navigate('/');
-    } catch (err) {
-      setError(err.response?.data?.error || 'Login failed');
-    } finally {
-      setLoading(false);
-    }
+  const data = await loginUser(email, password);
+  localStorage.setItem('token', data.token);
+  localStorage.setItem('user', JSON.stringify(data.user));
+  login(data.token, data.user);
+  navigate('/dashboard');
+} catch (err) {
+  setError(err.response?.data?.error || 'Login failed');
+} finally {
+  setLoading(false);
+}
   };
 
   return (

@@ -31,13 +31,14 @@ export const login = async (email, password) => {
 
 // User APIs
 export const getUserProfile = async () => {
-  const response = await api.get('/users/profile');
+  const response = await api.get('/users/me');
   return response.data;
 };
 
 export const getSavedDrugs = async () => {
-  const response = await api.get('/users/saved-drugs');
-  return response.data;
+  //const response = await api.get('/users/saved-drugs');
+  //return response.data;
+  return { data: [] };
 };
 
 // Drug APIs
@@ -51,9 +52,9 @@ export const getDrugDetails = async (drugId) => {
   return response.data;
 };
 
-// ── ML / Predictions API (Dishita's Flask server) ──
+// ── ML / Predictions API 
 const ML_API = axios.create({
-  baseURL: 'http://localhost:8000',  // ask Dishita for her Flask port
+  baseURL: 'http://localhost:5001', 
   headers: { 'Content-Type': 'application/json' },
 });
 
