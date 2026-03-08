@@ -25,8 +25,8 @@ function App() {
         <Route path="/disease-search" element={<DiseaseSearch />} />
         <Route path="/about" element={<About />} />
         <Route path="/drug-search" element={<DrugSearch />} />
-        <Route path="/analytics" element={<EDAPage />} />           {/* ← NEW */}
-        <Route path="/predictions" element={<Predictions />} /> {/* ← NEW */}
+        <Route path="/analytics" element={<ProtectedRoute><EDAPage /></ProtectedRoute>} />           
+        <Route path="/predictions" element={<ProtectedRoute><Predictions /></ProtectedRoute>} /> 
         <Route
           path="/dashboard"
           element={

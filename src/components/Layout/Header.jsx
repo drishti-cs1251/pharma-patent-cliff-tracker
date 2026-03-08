@@ -23,6 +23,8 @@ export default function Header() {
           {token ? (
             <>
               <a href="/dashboard">Dashboard</a>
+              <a href="/analytics">Analytics</a>       
+              <a href="/predictions">Predictions</a> 
               <button onClick={handleLogout} className="logout-btn">
                 Logout
               </button>
