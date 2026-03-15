@@ -52,6 +52,17 @@ export const getDrugDetails = async (drugId) => {
   return response.data;
 };
 
+// Disease APIs
+export const getDiseases = async () => {
+  const response = await api.get('/diseases');
+  return response.data;            // { success, count, data: ["Diabetes", ...] }
+};
+
+export const getDrugsByDisease = async (disease) => {
+  const response = await api.get(`/diseases/${encodeURIComponent(disease)}/drugs`);
+  return response.data;            // { success, count, data: [...cards] }
+};
+
 // ── ML / Predictions API 
 const ML_API = axios.create({
   baseURL: 'http://localhost:5001', 

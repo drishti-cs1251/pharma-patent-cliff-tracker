@@ -2,58 +2,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, X, Camera } from 'lucide-react';
 import Tesseract from 'tesseract.js';
+import { searchDrugs } from '../../services/api.js';
+import api from '../../services/api.js';
 import './SearchBar.css';
-
-// ─── MOCK DATA ───────────────────────────────────────────────────────────────
-
-const mockSearchResults = {
-  'lipitor': [
-    { id: 1, name: 'LIPITOR', generic_name: 'Atorvastatin', dosage_form: 'Tablet', strength: '10mg', patent_expired: true },
-    { id: 2, name: 'ATORVASTATIN', generic_name: 'Atorvastatin', dosage_form: 'Tablet', strength: '10mg', patent_expired: true },
-    { id: 3, name: 'TORVAST', generic_name: 'Atorvastatin', dosage_form: 'Tablet', strength: '10mg', patent_expired: true }
-  ],
-  'eliquis': [
-    { id: 4, name: 'ELIQUIS', generic_name: 'Apixaban', dosage_form: 'Tablet', strength: '5mg', patent_expired: false, patent_expiry: '2026-03-15' }
-  ],
-  'metformin': [
-    { id: 6, name: 'METFORMIN', generic_name: 'Metformin HCl', dosage_form: 'Tablet', strength: '500mg', patent_expired: true },
-    { id: 7, name: 'GLUCOPHAGE', generic_name: 'Metformin HCl', dosage_form: 'Tablet', strength: '500mg', patent_expired: true }
-  ],
-  'advil': [
-    { id: 9, name: 'ADVIL', generic_name: 'Ibuprofen', dosage_form: 'Tablet', strength: '200mg', patent_expired: true },
-    { id: 10, name: 'IBUPROFEN', generic_name: 'Ibuprofen', dosage_form: 'Tablet', strength: '200mg', patent_expired: true }
-  ],
-  'aspirin': [
-    { id: 18, name: 'ASPIRIN', generic_name: 'Aspirin', dosage_form: 'Tablet', strength: '81mg', patent_expired: true },
-    { id: 19, name: 'BAYER ASPIRIN', generic_name: 'Aspirin', dosage_form: 'Tablet', strength: '81mg', patent_expired: true }
-  ],
-  'tylenol': [
-    { id: 20, name: 'TYLENOL', generic_name: 'Acetaminophen', dosage_form: 'Tablet', strength: '500mg', patent_expired: true },
-    { id: 21, name: 'ACETAMINOPHEN', generic_name: 'Acetaminophen', dosage_form: 'Tablet', strength: '500mg', patent_expired: true }
-  ]
-};
-
-const mockAlternatives = {
-  'LIPITOR': {
-    active_ingredient: 'Atorvastatin',
-    alternatives: [
-      { id: 2, name: 'ATORVASTATIN', generic_name: 'Atorvastatin', dosage_form: 'Tablet', strength: '10mg', patent_expired: true },
-      { id: 3, name: 'TORVAST', generic_name: 'Atorvastatin', dosage_form: 'Tablet', strength: '10mg', patent_expired: true }
-    ]
-  },
-  'ASPIRIN': {
-    active_ingredient: 'Aspirin',
-    alternatives: [
-      { id: 19, name: 'BAYER ASPIRIN', generic_name: 'Aspirin', dosage_form: 'Tablet', strength: '81mg', patent_expired: true }
-    ]
-  },
-  'TYLENOL': {
-    active_ingredient: 'Acetaminophen',
-    alternatives: [
-      { id: 21, name: 'ACETAMINOPHEN', generic_name: 'Acetaminophen', dosage_form: 'Tablet', strength: '500mg', patent_expired: true }
-    ]
-  }
-};
 
 // ─── KNOWN DRUG LIST (for OCR matching) ──────────────────────────────────────
 
@@ -90,12 +41,6 @@ const parseDrugNameFromOCR = (rawText) => {
   return fallback ? fallback.split(' ')[0] : null;
 };
 
-// ─── ALL DRUG NAMES FOR AUTOCOMPLETE ─────────────────────────────────────────
-
-const allDrugNames = [...new Set(
-  Object.values(mockSearchResults).flat().map(d => d.name)
-)];
-
 // ─── COMPONENT ───────────────────────────────────────────────────────────────
 
 export default function SearchBar() {
@@ -119,18 +64,20 @@ export default function SearchBar() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const inputRef = useRef(null);
 
-  // ── Autocomplete effect ──
+  // ── Autocomplete effect — live suggestions from API ──
   useEffect(() => {
     if (query.length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
       return;
     }
-    const filtered = allDrugNames.filter(name =>
-      name.toLowerCase().includes(query.toLowerCase())
-    );
-    setSuggestions(filtered.slice(0, 6));
-    setShowSuggestions(filtered.length > 0);
+    const controller = new AbortController();
+    searchDrugs(query).then(response => {
+      const names = (response.data || []).map(d => d.name);
+      setSuggestions(names.slice(0, 6));
+      setShowSuggestions(names.length > 0);
+    }).catch(() => {/* ignore autocomplete errors */});
+    return () => controller.abort();
   }, [query]);
 
   // ── Search ──
@@ -153,9 +100,8 @@ export default function SearchBar() {
     setShowSuggestions(false);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 600));
-      const searchKey = searchQuery.toLowerCase().trim();
-      const results = mockSearchResults[searchKey] || [];
+      const response = await searchDrugs(searchQuery.trim());
+      const results = response.data || [];
       setSearchResults(results);
       if (results.length === 0) {
         setError(`No results found for "${searchQuery}"`);
@@ -246,8 +192,8 @@ export default function SearchBar() {
     setError('');
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const altData = mockAlternatives[drug.name];
+      const response = await api.get(`/drugs/alternatives/${drug.app_no}`);
+      const altData = response.data?.data;
       if (altData) {
         setAlternatives(altData);
         if (altData.alternatives.length === 0) {
@@ -300,23 +246,29 @@ export default function SearchBar() {
       {/* ── Search Form ── */}
       <form onSubmit={handleSearch} className="search-form">
         <div className="search-input-wrapper">
-          <Search className="search-icon" size={20} />
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onFocus={() => query.length >= 2 && setShowSuggestions(suggestions.length > 0)}
-            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-            placeholder="Enter drug name (e.g., Lipitor, Metformin, Advil)"
-            className="search-input"
-            autoComplete="off"
-          />
-          {query && (
-            <button type="button" onClick={clearSearch} className="clear-button" aria-label="Clear">
+          <div className="search-input-inner">
+            <Search className="search-icon" size={20} />
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => query.length >= 2 && setShowSuggestions(suggestions.length > 0)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              placeholder="Enter drug name (e.g., Lipitor, Metformin, Advil)"
+              className="search-input"
+              autoComplete="off"
+            />
+            <button
+              type="button"
+              onClick={clearSearch}
+              className="clear-button"
+              aria-label="Clear"
+              style={{ display: query ? 'flex' : 'none' }}
+            >
               <X size={18} />
             </button>
-          )}
+          </div>
 
           {/* Autocomplete Dropdown */}
           {showSuggestions && (

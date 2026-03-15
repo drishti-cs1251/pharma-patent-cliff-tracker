@@ -10,7 +10,7 @@ import Header from '../components/Layout/Header';
 import Footer from '../components/Layout/Footer';
 import './EDAPage.css';
 
-const FLASK_URL = import.meta.env.VITE_FLASK_URL || 'http://localhost:5000';
+const FLASK_URL = import.meta.env.VITE_FLASK_URL || 'http://localhost:5001';
 
 // Fallback data (same as eda_statistics.json)
 const FALLBACK_DATA = {
