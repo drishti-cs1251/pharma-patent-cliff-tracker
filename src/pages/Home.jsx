@@ -37,15 +37,15 @@ export default function Home() {
 
           <div className="hero-stats">
             <div className="stat-card">
-              <h3>90%</h3>
+              <h3>40-90%</h3>
               <p>Average savings with generics</p>
             </div>
             <div className="stat-card">
-              <h3>100+</h3>
+              <h3>1000+</h3>
               <p>Drugs tracked</p>
             </div>
             <div className="stat-card">
-              <h3>AI-Powered</h3>
+              <h3>ML-Powered</h3>
               <p>Patent predictions</p>
             </div>
           </div>
@@ -69,7 +69,7 @@ export default function Home() {
       </div>
       <div className="feature-card">
         <div className="feature-icon">🤖</div>
-        <h3>AI Predictions</h3>
+        <h3>MI Predictions</h3>
         <p>ML model predicts when expensive drugs will have generic alternatives</p>
       </div>
       <div className="feature-card">
