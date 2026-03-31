@@ -1,29 +1,39 @@
-/* pages/Home.css */
+/* ============================================================
+   pages/Home.css  —  Patent Cliff Tracker Home Page
+   Scoped carefully so About.css variables don't bleed in.
+   ============================================================ */
+
+/* ── Page shell ──────────────────────────────────────────────── */
 .home-page {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
-.home-content {
-  flex: 1;
-}
+.home-content { flex: 1; }
 
-/* Hero Section */
-.hero {
+/* ════════════════════════════════════════════════════════════
+   HERO  —  all selectors scoped under .home-page .hero
+   (prevents .stat-number / .stat-label / .hero-stats clashes
+   with About.css which uses the same class names globally)
+════════════════════════════════════════════════════════════ */
+.home-page .hero {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  padding: 80px 20px;
+  padding: 80px 20px 100px;
   text-align: center;
 }
 
-.hero-content h1 {
+.home-page .hero-content h1 {
   font-size: 48px;
   margin-bottom: 20px;
   font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.5px;
 }
 
-.subtitle {
+.home-page .subtitle {
   font-size: 20px;
   margin-bottom: 40px;
   opacity: 0.95;
@@ -32,15 +42,17 @@
   margin-right: auto;
 }
 
-.hero-buttons {
+/* CTA buttons */
+.home-page .hero-buttons {
   display: flex;
   gap: 20px;
   justify-content: center;
-  margin-bottom: 60px;
+  margin-bottom: 64px;
   flex-wrap: wrap;
 }
 
-.primary-btn, .secondary-btn {
+.home-page .primary-btn,
+.home-page .secondary-btn {
   padding: 15px 35px;
   font-size: 16px;
   font-weight: 600;
@@ -48,200 +60,187 @@
   cursor: pointer;
   transition: all 0.3s;
   border: 2px solid transparent;
+  font-family: inherit;
 }
 
-.primary-btn {
+.home-page .primary-btn {
   background: white;
   color: #667eea;
+  border-color: white;
 }
-
-.primary-btn:hover {
+.home-page .primary-btn:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.2);
 }
 
-.secondary-btn {
+.home-page .secondary-btn {
   background: transparent;
   color: white;
   border-color: white;
 }
-
-.secondary-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+.home-page .secondary-btn:hover {
+  background: rgba(255,255,255,0.1);
+  transform: translateY(-2px);
 }
 
-/* Hero Stats */
-.hero-stats {
+/* ── Hero stats strip ────────────────────────────────────────── */
+/* Scoped entirely under .home-page so About.css's .hero-stats,
+   .stat, .stat-number, .stat-label can't touch these */
+.home-page .hero-stats {
   display: flex;
-  gap: 30px;
+  gap: 24px;
   justify-content: center;
   flex-wrap: wrap;
-  max-width: 900px;
+  max-width: 860px;
   margin: 0 auto;
 }
 
-.stat-card {
-  background: rgba(255, 255, 255, 0.15);
-  padding: 25px;
-  border-radius: 12px;
+.home-page .stat-card {
+  /* Reset any CSS variables that About.css may have set on :root */
+  --accent: none;
+  --acc: none;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.25);
+  backdrop-filter: none;           /* no glass blur — keeps it crisp */
+  padding: 28px 32px;
+  border-radius: 14px;
   min-width: 200px;
-  backdrop-filter: blur(10px);
+  flex: 1;
+  max-width: 260px;
+  transition: transform 0.25s, background 0.25s;
+}
+.home-page .stat-card:hover {
+  background: rgba(255,255,255,0.22);
+  transform: translateY(-4px);
 }
 
-.stat-card h3 {
-  font-size: 36px;
-  margin-bottom: 8px;
+/* These are intentionally MORE specific than About.css rules */
+.home-page .stat-card h3 {
+  font-size: 38px;
+  font-weight: 800;
+  color: white;
+  margin: 0 0 8px;
+  line-height: 1;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* override Sora that About.css imports */
+  letter-spacing: -0.5px;
 }
 
-.stat-card p {
+.home-page .stat-card p {
   font-size: 14px;
-  opacity: 0.9;
+  color: rgba(255,255,255,0.88);
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
-/* Features Section */
-.features {
-  padding: 80px 40px;
+/* ════════════════════════════════════════════════════════════
+   FEATURES SECTION
+════════════════════════════════════════════════════════════ */
+.home-page .features {
+  padding: 80px 20px;
   background: #f8f9fa;
   text-align: center;
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  overflow-x: hidden;
 }
-.features-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-.features h2 {
-  font-size: 40px;
-  font-weight: 700;
+
+.home-page .features h2 {
+  font-size: 36px;
   color: #2c3e50;
-  margin-bottom: 12px;
-  display: block;
-  width: 100%;
-}
-
-.features-subtitle {
-  font-size: 16px;
-  color: #888;
   margin-bottom: 50px;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-weight: 700;
 }
 
-.features-grid {
+.home-page .features-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 28px;
   max-width: 1200px;
   margin: 0 auto;
-  box-sizing: border-box;
 }
 
-.feature-card {
+.home-page .feature-card {
   background: white;
-  padding: 40px 24px;
-  border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.07);
-  transition: all 0.3s ease;
-  border: 1px solid #eee;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  padding: 40px 28px;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+  transition: transform 0.3s, box-shadow 0.3s;
+  border-top: 3px solid transparent;
+}
+.home-page .feature-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.11);
+  border-top-color: #667eea;
 }
 
-.feature-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 12px 40px rgba(102, 126, 234, 0.2);
-  border-color: #667eea;
+.home-page .feature-icon {
+  font-size: 48px;
+  margin-bottom: 18px;
+  display: block;
 }
 
-.feature-icon {
-  font-size: 52px;
-  margin-bottom: 20px;
-}
-
-.feature-card h3 {
-  font-size: 18px;
-  font-weight: 700;
+.home-page .feature-card h3 {
+  font-size: 20px;
   color: #2c3e50;
   margin-bottom: 12px;
+  font-weight: 700;
 }
 
-.feature-card p {
-  font-size: 14px;
-  color: #666;
-  line-height: 1.7;
+.home-page .feature-card p {
+  color: #6b7280;
+  line-height: 1.65;
+  font-size: 15px;
   margin: 0;
 }
 
-@media (max-width: 900px) {
-  .features-grid { grid-template-columns: repeat(2, 1fr); }
-}
-
-@media (max-width: 500px) {
-  .features-grid { grid-template-columns: 1fr; }
-  .features h2 { font-size: 28px; }
-}
-/* CTA Section */
-.cta-section {
+/* ════════════════════════════════════════════════════════════
+   CTA SECTION
+════════════════════════════════════════════════════════════ */
+.home-page .cta-section {
   padding: 80px 20px;
   text-align: center;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
 }
 
-.cta-section h2 {
+.home-page .cta-section h2 {
   font-size: 36px;
-  margin-bottom: 15px;
+  margin-bottom: 14px;
+  font-weight: 700;
 }
 
-.cta-section p {
+.home-page .cta-section p {
   font-size: 18px;
-  margin-bottom: 30px;
+  margin-bottom: 32px;
   opacity: 0.95;
 }
 
-.cta-button {
-  padding: 18px 40px;
+.home-page .cta-button {
+  padding: 17px 42px;
   background: white;
   color: #667eea;
   border: none;
   border-radius: 8px;
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.3s;
+  font-family: inherit;
 }
-
-.cta-button:hover {
+.home-page .cta-button:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.2);
 }
 
-/* Responsive */
+/* ════════════════════════════════════════════════════════════
+   RESPONSIVE
+════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-  .hero-content h1 {
-    font-size: 32px;
-  }
-
-  .subtitle {
-    font-size: 16px;
-  }
-
-  .hero-buttons {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .features h2,
-  .cta-section h2 {
-    font-size: 28px;
-  }
-
-  .features-grid {
-    grid-template-columns: 1fr;
-  }
+  .home-page .hero-content h1 { font-size: 32px; }
+  .home-page .subtitle         { font-size: 16px; }
+  .home-page .hero-buttons     { flex-direction: column; align-items: stretch; padding: 0 20px; }
+  .home-page .hero-stats       { flex-direction: column; align-items: center; }
+  .home-page .stat-card        { max-width: 100%; width: 100%; }
+  .home-page .features h2,
+  .home-page .cta-section h2   { font-size: 28px; }
+  .home-page .features-grid    { grid-template-columns: 1fr; }
 }
