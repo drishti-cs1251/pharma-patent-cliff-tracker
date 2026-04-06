@@ -72,11 +72,13 @@
   align-items: center;
   position: relative;
   z-index: 50;
+  flex-wrap: nowrap;
 }
 
 .search-input-wrapper {
-  flex: 1;
+  flex: 1 1 0%;
   min-width: 0;
+  max-width: calc(100% - 120px);
   position: relative;
   display: flex;
   align-items: center;
@@ -84,7 +86,7 @@
 }
 
 .search-input-inner {
-  flex: 1;
+  flex: 1 1 0%;
   min-width: 0;
   position: relative;
   display: flex;
@@ -105,12 +107,14 @@
 .search-input-wrapper:focus-within .search-icon {
   color: var(--primary);
 }
+
 .search-input-inner .suggestions-dropdown {
   max-height: 240px;
   overflow-y: auto;
 }
+
 .search-input {
-  flex: 1;
+  flex: 1 1 0%;
   width: 100%;
   height: 52px;
   padding: 0 48px 0 48px;
@@ -127,6 +131,7 @@
   position: relative;
   z-index: 1;
   min-width: 0;
+  display: block;
 }
 
 .search-input::placeholder {
@@ -166,8 +171,10 @@
 .search-button {
   height: 52px;
   padding: 0 28px;
-  flex-shrink: 0;
-  flex-grow: 0;
+  flex: 0 0 auto;
+  width: auto;
+  min-width: unset;
+  max-width: 130px;
   background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
   color: white;
   border: none;
@@ -214,6 +221,7 @@
   top: calc(100% + 8px);
   left: 0;
   right: 0;
+  width: 100%;
   background: var(--surface);
   border: 1.5px solid var(--primary);
   border-radius: var(--radius-lg);
@@ -551,6 +559,7 @@
   font-weight: 500;
   margin: 0;
 }
+
 .search-results {
   animation: fadeIn 0.25s ease;
 }
@@ -731,6 +740,7 @@
   color: var(--warning);
   border: 1px solid rgba(230,126,34,0.25);
 }
+
 .alternatives-section {
   animation: fadeIn 0.25s ease;
 }
@@ -922,6 +932,7 @@
   transform: translateY(-1px);
   box-shadow: var(--shadow-primary);
 }
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -940,6 +951,7 @@
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
 @media (max-width: 640px) {
   .search-container {
     padding: 28px 16px 60px;
@@ -986,43 +998,4 @@
     width: 56px;
     height: 56px;
   }
-}
-/* ── Emergency layout fixes ── */
-.search-form {
-  display: flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
-  flex-wrap: nowrap !important;
-}
-
-.search-input-wrapper {
-  flex: 1 1 0% !important;
-  min-width: 0 !important;
-  max-width: calc(100% - 120px) !important;
-}
-
-.search-input-inner {
-  flex: 1 1 0% !important;
-  min-width: 0 !important;
-  width: 100% !important;
-}
-
-.search-input {
-  flex: 1 1 0% !important;
-  min-width: 0 !important;
-  width: 100% !important;
-  display: block !important;
-}
-
-.search-button {
-  flex: 0 0 auto !important;
-  width: auto !important;
-  min-width: unset !important;
-  max-width: 130px !important;
-}
-
-.search-input-inner .suggestions-dropdown {
-  max-height: 240px !important;
-  overflow-y: auto !important;
-  width: 100% !important;
 }
