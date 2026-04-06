@@ -1,4 +1,3 @@
-// src/pages/Predictions.jsx  — savings calculator integrated with live API
 import { useState, useEffect } from 'react';
 import Header from '../components/Layout/Header';
 import Footer from '../components/Layout/Footer';
@@ -17,7 +16,7 @@ const MONTHS = [
   { value: 11, label: 'November'  }, { value: 12, label: 'December'  },
 ];
 
-const ML_BASE = 'http://localhost:5001';
+const ML_BASE = import.meta.env.VITE_ML_URL || 'http://localhost:5001';
 
 export default function Predictions() {
   const [drugName,      setDrugName]      = useState('');

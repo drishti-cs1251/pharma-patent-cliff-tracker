@@ -69,7 +69,7 @@ export default function Home() {
       </div>
       <div className="feature-card">
         <div className="feature-icon">🤖</div>
-        <h3>MI Predictions</h3>
+        <h3>ML Predictions</h3>
         <p>ML model predicts when expensive drugs will have generic alternatives</p>
       </div>
       <div className="feature-card">
