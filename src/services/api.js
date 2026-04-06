@@ -1,89 +1,104 @@
 // services/api.js
 import axios from 'axios';
 
-// Create axios instance
+// ── Axios instances ───────────────────────────────────────────────────────────
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Add token to requests if it exists
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Auth APIs
-export const register = async (email, password) => {
-  const response = await api.post('/auth/register', { email, password });
-  return response.data;
-};
-
-export const login = async (email, password) => {
-  const response = await api.post('/auth/login', { email, password });
-  return response.data;
-};
-
-// User APIs
-export const getUserProfile = async () => {
-  const response = await api.get('/users/me');
-  return response.data;
-};
-
-export const getSavedDrugs = async () => {
-  //const response = await api.get('/users/saved-drugs');
-  //return response.data;
-  return { data: [] };
-};
-
-// Drug APIs
-export const searchDrugs = async (query) => {
-  const response = await api.get(`/drugs/search?q=${query}`);
-  return response.data;
-};
-
-export const getDrugDetails = async (drugId) => {
-  const response = await api.get(`/drugs/${drugId}`);
-  return response.data;
-};
-
-// Disease APIs
-export const getDiseases = async () => {
-  const response = await api.get('/diseases');
-  return response.data;            // { success, count, data: ["Diabetes", ...] }
-};
-
-export const getDrugsByDisease = async (disease) => {
-  const response = await api.get(`/diseases/${encodeURIComponent(disease)}/drugs`);
-  return response.data;            // { success, count, data: [...cards] }
-};
-
-// ── ML / Predictions API 
-const ML_API = axios.create({
-  baseURL: 'http://localhost:5001', 
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Send drug data → get prediction back
-export const predictGenericLaunch = async (drugData) => {
-  const response = await ML_API.post('/predict', drugData);
-  return response.data;
-};
+// Attach JWT from localStorage to every request
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 
-// Get all model insights/stats (for visualizations)
-export const getModelInsights = async () => {
-  const response = await ML_API.get('/insights');
-  return response.data;
-};
+const ML_API = axios.create({
+  baseURL: 'http://localhost:5001',
+  headers: { 'Content-Type': 'application/json' },
+});
 
-// Get predictions for multiple drugs at once
-export const getBatchPredictions = async (drugs) => {
-  const response = await ML_API.post('/predict/batch', { drugs });
-  return response.data;
-};
+// ── Auth ──────────────────────────────────────────────────────────────────────
+export const register = (email, password) =>
+  api.post('/auth/register', { email, password }).then(r => r.data);
+
+export const login = (email, password) =>
+  api.post('/auth/login', { email, password }).then(r => r.data);
+
+// ── User profile ──────────────────────────────────────────────────────────────
+export const getUserProfile = () =>
+  api.get('/auth/me').then(r => r.data);
+
+// ── Watchlist ─────────────────────────────────────────────────────────────────
+
+/**
+ * Fetch the authenticated user's watchlist.
+ * Returns: { success, count, data: WatchlistEntry[] }
+ */
+export const getWatchlist = () =>
+  api.get('/users/watchlist').then(r => r.data);
+
+/**
+ * Add a drug to the watchlist.
+ * @param {{ drug_name, generic_name, patent_expiry, dosage_form?, category? }} entry
+ * Returns: { success, data: WatchlistEntry }
+ */
+export const addWatchlistEntry = (entry) =>
+  api.post('/users/watchlist', entry).then(r => r.data);
+
+/**
+ * Remove a watchlist entry by id.
+ * Returns: { success, message }
+ */
+export const removeWatchlistEntry = (id) =>
+  api.delete(`/users/watchlist/${id}`).then(r => r.data);
+
+// ── Alerts ────────────────────────────────────────────────────────────────────
+
+/**
+ * Fetch all alerts for the authenticated user.
+ * Returns: { success, count, data: Alert[] }
+ */
+export const getAlerts = () =>
+  api.get('/users/alerts').then(r => r.data);
+
+/**
+ * Mark a single alert as read.
+ * Returns: { success, message }
+ */
+export const markAlertRead = (id) =>
+  api.patch(`/users/alerts/${id}/read`).then(r => r.data);
+
+/**
+ * Dismiss (delete) a single alert.
+ * Returns: { success, message }
+ */
+export const dismissAlert = (id) =>
+  api.delete(`/users/alerts/${id}`).then(r => r.data);
+
+// ── Drugs ─────────────────────────────────────────────────────────────────────
+export const searchDrugs = (query) =>
+  api.get(`/drugs/search?q=${encodeURIComponent(query)}`).then(r => r.data);
+
+export const getDrugDetails = (drugId) =>
+  api.get(`/drugs/${drugId}`).then(r => r.data);
+
+// ── Diseases ──────────────────────────────────────────────────────────────────
+export const getDiseases = () =>
+  api.get('/diseases').then(r => r.data);
+
+export const getDrugsByDisease = (disease) =>
+  api.get(`/diseases/${encodeURIComponent(disease)}/drugs`).then(r => r.data);
+
+// ── ML / Predictions ──────────────────────────────────────────────────────────
+export const predictGenericLaunch = (drugData) =>
+  ML_API.post('/predict', drugData).then(r => r.data);
+
+export const getModelInsights = () =>
+  ML_API.get('/insights').then(r => r.data);
+
+export const getBatchPredictions = (drugs) =>
+  ML_API.post('/predict/batch', { drugs }).then(r => r.data);
+
 export default api;

@@ -1,7 +1,6 @@
 // components/SearchBar/SearchBar.jsx
 import { useState, useEffect, useRef } from 'react';
 import { Search, X, Camera } from 'lucide-react';
-import Tesseract from 'tesseract.js';
 import { searchDrugs } from '../../services/api.js';
 import api from '../../services/api.js';
 import './SearchBar.css';
@@ -13,6 +12,8 @@ const knownDrugs = [
   'advil', 'ibuprofen',
   'aspirin', 'bayer aspirin',
   'tylenol', 'acetaminophen',
+  'abraxane', 'paclitaxel',
+  'elcys'
 ];
 
 const parseDrugNameFromOCR = (rawText) => {
@@ -91,7 +92,8 @@ export default function SearchBar() {
     const file = e.target.files[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) { setError('Please upload a valid image file (JPG, PNG, etc.)'); return; }
-    if (file.size > 5 * 1024 * 1024) { setError('Image size should be less than 5MB'); return; }
+    // Change this line in handleImageUpload:
+    if (file.size > 1 * 1024 * 1024) { setError('Image size should be less than 1MB for OCR processing'); return; }
     setUploadedImage(file);
     setError('');
     const reader = new FileReader();
@@ -111,17 +113,44 @@ export default function SearchBar() {
   const handleDragOver = (e) => e.preventDefault();
 
   const extractTextFromImage = async (imageFile) => {
+    console.log('OCR Key:', import.meta.env.VITE_OCR_SPACE_API_KEY);
     setExtracting(true);
     setOcrProgress(0);
     setError('');
     setExtractedDrugName('');
+
     try {
-      const result = await Tesseract.recognize(imageFile, 'eng', {
-        logger: (m) => {
-          if (m.status === 'recognizing text') setOcrProgress(Math.round(m.progress * 100));
+      // Simulate progress since OCR.space doesn't stream progress
+      setOcrProgress(30);
+
+      const formData = new FormData();
+      formData.append('file', imageFile);
+      formData.append('language', 'eng');
+      formData.append('isOverlayRequired', 'false');
+      formData.append('detectOrientation', 'true');
+      formData.append('scale', 'true');         // improves accuracy on small text
+      formData.append('OCREngine', '2');        // Engine 2 is more accurate for medicine labels
+
+      const response = await fetch('https://api.ocr.space/parse/image', {
+        method: 'POST',
+        headers: {
+          apikey: import.meta.env.VITE_OCR_SPACE_API_KEY,
         },
+        body: formData,
       });
-      const detectedDrug = parseDrugNameFromOCR(result.data.text);
+
+      setOcrProgress(80);
+
+      const data = await response.json();
+
+      if (data.IsErroredOnProcessing) {
+        throw new Error(data.ErrorMessage?.[0] || 'OCR processing failed');
+      }
+
+      const rawText = data.ParsedResults?.[0]?.ParsedText || '';
+      setOcrProgress(100);
+
+      const detectedDrug = parseDrugNameFromOCR(rawText);
       if (detectedDrug) {
         setExtractedDrugName(detectedDrug);
         setQuery(detectedDrug);

@@ -1,38 +1,22 @@
 // pages/Dashboard.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// BACKEND REQUIREMENTS (minimal — 2 new tables only):
-//
-// 1. user_watchlist
-//    id SERIAL PK, user_id INT FK(users), drug_name VARCHAR, generic_name VARCHAR,
-//    patent_expiry DATE, dosage_form VARCHAR, category VARCHAR,
-//    created_at TIMESTAMP DEFAULT NOW()
-//    → API: GET /api/users/watchlist
-//           POST /api/users/watchlist   { drug_name, generic_name, patent_expiry, dosage_form, category }
-//           DELETE /api/users/watchlist/:id
-//
-// 2. user_alerts
-//    id SERIAL PK, user_id INT FK(users), drug_name VARCHAR, alert_type VARCHAR,
-//    message TEXT, read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT NOW()
-//    → API: GET /api/users/alerts
-//           PATCH /api/users/alerts/:id/read
-//           DELETE /api/users/alerts/:id
-//    → Cron (node-cron or Airflow, runs daily):
-//        SELECT w.*, u.email FROM user_watchlist w JOIN users u ON w.user_id = u.id
-//        WHERE DATE_PART('day', patent_expiry - NOW()) IN (365, 180, 90, 30)
-//        → INSERT INTO user_alerts + send email via Nodemailer
-//
-// No price columns needed in DB — savings are estimated on the frontend only.
-// ─────────────────────────────────────────────────────────────────────────────
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import Header from '../components/Layout/Header';
 import Footer from '../components/Layout/Footer';
+import {
+  getWatchlist,
+  addWatchlistEntry,
+  removeWatchlistEntry,
+  getAlerts,
+  markAlertRead,
+  dismissAlert,
+  searchDrugs,
+} from '../services/api';
 import './Dashboard.css';
 
 // ── Static: next-10-expiring from full drug universe ─────────────────────────
 // In production: GET /api/drugs/expiring-soon?limit=10
-// Sorted by expiry date ascending from today (demo date: Mar 31 2026)
 const NEXT_10_EXPIRING = [
   { drug: 'ELIQUIS',    generic: 'Apixaban',              expiry: '2026-04-15', category: 'Blood Thinner', days: 15  },
   { drug: 'XARELTO',   generic: 'Rivaroxaban',            expiry: '2026-05-22', category: 'Anticoagulant', days: 52  },
@@ -46,22 +30,8 @@ const NEXT_10_EXPIRING = [
   { drug: 'ADVAIR',    generic: 'Fluticasone/Salmeterol', expiry: '2027-01-10', category: 'Respiratory',   days: 285 },
 ];
 
-// ── Mock watchlist — swap with GET /api/users/watchlist ──────────────────────
-const MOCK_WATCHLIST = [
-  { id: 1, drug_name: 'ELIQUIS',  generic_name: 'Apixaban',    patent_expiry: '2026-04-15', dosage_form: '5mg Tablet',     category: 'Blood Thinner' },
-  { id: 2, drug_name: 'JANUVIA',  generic_name: 'Sitagliptin', patent_expiry: '2026-09-20', dosage_form: '100mg Tablet',   category: 'Diabetes'      },
-  { id: 3, drug_name: 'HUMIRA',   generic_name: 'Adalimumab',  patent_expiry: '2027-12-31', dosage_form: '40mg Injection', category: 'Arthritis'     },
-];
-
-// ── Mock alerts — swap with GET /api/users/alerts ────────────────────────────
-const MOCK_ALERTS = [
-  { id: 1, drug_name: 'ELIQUIS', alert_type: '30-day',  message: 'ELIQUIS patent expires in ~15 days (Apr 15 2026). Generic Apixaban will be available soon — ask your doctor about switching.', created_at: '2026-03-16', read: false },
-  { id: 2, drug_name: 'JANUVIA', alert_type: '180-day', message: 'JANUVIA patent expires in ~6 months (Sep 20 2026). Start researching generic Sitagliptin options with your pharmacist.', created_at: '2026-03-20', read: false },
-  { id: 3, drug_name: 'HUMIRA',  alert_type: '365-day', message: 'HUMIRA patent expires in ~1 year (Dec 31 2027). Plan ahead — biosimilar Adalimumab could significantly reduce your costs.', created_at: '2026-03-25', read: true  },
-];
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const TODAY = new Date('2026-03-31');
+const TODAY = new Date();
 
 function daysUntil(dateStr) {
   return Math.round((new Date(dateStr) - TODAY) / 86400000);
@@ -79,10 +49,10 @@ function urgencyLabel(days) {
 }
 
 const ALERT_STYLE = {
-  '30-day':          { icon: '🚨', border: '#ef4444', bg: '#fff5f5', tag: '30-day alert'   },
-  '90-day':          { icon: '⚠️', border: '#f59e0b', bg: '#fffbeb', tag: '90-day alert'   },
-  '180-day':         { icon: '📅', border: '#667eea', bg: '#eff6ff', tag: '6-month notice' },
-  '365-day':         { icon: '💡', border: '#10b981', bg: '#f0fdf4', tag: '1-year notice'  },
+  '30-day':           { icon: '🚨', border: '#ef4444', bg: '#fff5f5', tag: '30-day alert'   },
+  '90-day':           { icon: '⚠️', border: '#f59e0b', bg: '#fffbeb', tag: '90-day alert'   },
+  '180-day':          { icon: '📅', border: '#667eea', bg: '#eff6ff', tag: '6-month notice' },
+  '365-day':          { icon: '💡', border: '#10b981', bg: '#f0fdf4', tag: '1-year notice'  },
   'generic_available':{ icon: '🎉', border: '#10b981', bg: '#f0fdf4', tag: 'Generic Live!'  },
 };
 
@@ -144,11 +114,14 @@ function WatchlistCard({ drug, onRemove }) {
   );
 }
 
-function AlertItem({ alert, onDismiss }) {
+function AlertItem({ alert, onDismiss, onRead }) {
   const style = ALERT_STYLE[alert.alert_type] || ALERT_STYLE['365-day'];
   return (
-    <div className={`alert-item ${alert.read ? 'alert-read' : 'alert-unread'}`}
-         style={{ borderLeftColor: style.border, background: style.bg }}>
+    <div
+      className={`alert-item ${alert.read ? 'alert-read' : 'alert-unread'}`}
+      style={{ borderLeftColor: style.border, background: style.bg }}
+      onClick={() => !alert.read && onRead(alert.id)}
+    >
       <span className="alert-ico">{style.icon}</span>
       <div className="alert-content">
         <div className="alert-meta-row">
@@ -159,77 +132,159 @@ function AlertItem({ alert, onDismiss }) {
         <p className="alert-msg">{alert.message}</p>
         <span className="alert-date">{fmtDate(alert.created_at)}</span>
       </div>
-      <button className="alert-x" onClick={() => onDismiss(alert.id)}>×</button>
+      <button className="alert-x" onClick={(e) => { e.stopPropagation(); onDismiss(alert.id); }}>×</button>
     </div>
   );
 }
 
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 export default function Dashboard() {
-  const navigate  = useNavigate();
-  const userEmail = localStorage.getItem('userEmail') || 'user@example.com';
-  const userName  = userEmail.split('@')[0];
+  const navigate     = useNavigate();
+  const { user }     = useAuth();
+  const userEmail    = user?.email || localStorage.getItem('userEmail') || 'user@example.com';
+  const userName     = user?.name  || userEmail.split('@')[0];
 
-  const [watchlist,   setWatchlist]   = useState([]);
-  const [alerts,      setAlerts]      = useState([]);
-  const [activeTab,   setActiveTab]   = useState('overview');
-  const [loading,     setLoading]     = useState(true);
-  const [addOpen,     setAddOpen]     = useState(false);
-  const [addQuery,    setAddQuery]    = useState('');
-  const [addResults,  setAddResults]  = useState([]);
+  const [watchlist,  setWatchlist]  = useState([]);
+  const [alerts,     setAlerts]     = useState([]);
+  const [activeTab,  setActiveTab]  = useState('overview');
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState(null);
+
+  // Add-drug modal state
+  const [addOpen,    setAddOpen]    = useState(false);
+  const [addQuery,   setAddQuery]   = useState('');
+  const [addResults, setAddResults] = useState([]);
+  const [adding,     setAdding]     = useState(false);
 
   // ── Load data ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    // TODO: replace with real API calls:
-    //   const [wl, al] = await Promise.all([api.get('/users/watchlist'), api.get('/users/alerts')]);
-    //   setWatchlist(wl.data); setAlerts(al.data);
-    setTimeout(() => {
-      setWatchlist(MOCK_WATCHLIST);
-      setAlerts(MOCK_ALERTS);
+  const loadDashboard = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [wlRes, alRes] = await Promise.all([getWatchlist(), getAlerts()]);
+      setWatchlist(wlRes.data  ?? []);
+      setAlerts(alRes.data     ?? []);
+    } catch (err) {
+      console.error('[Dashboard] load error:', err);
+      setError('Failed to load dashboard data. Please refresh.');
+    } finally {
       setLoading(false);
-    }, 700);
+    }
   }, []);
 
+  useEffect(() => { loadDashboard(); }, [loadDashboard]);
+
   // ── Computed stats ────────────────────────────────────────────────────────
-  const unread        = alerts.filter(a => !a.read).length;
-  const expiringSoon  = watchlist.filter(d => { const dy = daysUntil(d.patent_expiry); return dy > 0 && dy <= 180; }).length;
+  const unread         = alerts.filter(a => !a.read).length;
+  const expiringSoon   = watchlist.filter(d => { const dy = daysUntil(d.patent_expiry); return dy > 0 && dy <= 180; }).length;
   const alreadyExpired = watchlist.filter(d => daysUntil(d.patent_expiry) < 0).length;
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  const handleRemove = (id) => {
-    // TODO: await api.delete(`/users/watchlist/${id}`)
+  const handleRemove = async (id) => {
+    // Optimistic update
     setWatchlist(p => p.filter(d => d.id !== id));
+    try {
+      await removeWatchlistEntry(id);
+    } catch (err) {
+      console.error('[Watchlist] remove error:', err);
+      loadDashboard(); // revert on failure
+    }
   };
 
-  const handleDismissAlert = (id) => {
-    // TODO: await api.delete(`/users/alerts/${id}`)
+  const handleDismissAlert = async (id) => {
     setAlerts(p => p.filter(a => a.id !== id));
+    try {
+      await dismissAlert(id);
+    } catch (err) {
+      console.error('[Alerts] dismiss error:', err);
+      loadDashboard();
+    }
   };
 
-  const handleAddSearch = (q) => {
+  const handleReadAlert = async (id) => {
+    setAlerts(p => p.map(a => a.id === id ? { ...a, read: true } : a));
+    try {
+      await markAlertRead(id);
+    } catch (err) {
+      console.error('[Alerts] mark-read error:', err);
+    }
+  };
+
+  // Search uses the real drug search API, falling back to NEXT_10_EXPIRING locally
+  const handleAddSearch = async (q) => {
     setAddQuery(q);
     if (!q.trim()) { setAddResults([]); return; }
-    // TODO: GET /api/drugs/search?q=q
-    setAddResults(NEXT_10_EXPIRING.filter(d =>
+
+    // Quick local filter first for instant feedback
+    const local = NEXT_10_EXPIRING.filter(d =>
       d.drug.toLowerCase().includes(q.toLowerCase()) ||
       d.generic.toLowerCase().includes(q.toLowerCase())
-    ));
+    );
+    setAddResults(local);
+
+    // Also hit the real drug search endpoint
+    try {
+      const res = await searchDrugs(q);
+      if (res.data?.length) {
+        // Map API results to the same shape NEXT_10_EXPIRING uses
+        const remote = res.data.map(d => ({
+          drug:     d.brand_name?.toUpperCase() || d.generic_name?.toUpperCase(),
+          generic:  d.generic_name,
+          expiry:   d.patent_expiry_date,
+          category: d.category || 'Pharmaceutical',
+          days:     daysUntil(d.patent_expiry_date),
+          dosage_form: d.dosage_form || 'See drug label',
+        })).filter(d => d.expiry); // guard against missing expiry
+        setAddResults(prev => {
+          // Merge: remote results first, then local ones not already present
+          const remoteNames = new Set(remote.map(r => r.drug));
+          return [...remote, ...prev.filter(p => !remoteNames.has(p.drug))];
+        });
+      }
+    } catch {
+      // Silently fall back to the local results already shown
+    }
   };
 
-  const handleAddDrug = (item) => {
+  const handleAddDrug = async (item) => {
     if (watchlist.find(d => d.drug_name === item.drug)) return;
-    const entry = { id: Date.now(), drug_name: item.drug, generic_name: item.generic,
-                    patent_expiry: item.expiry, dosage_form: 'See drug label', category: item.category };
-    // TODO: await api.post('/users/watchlist', entry)
-    setWatchlist(p => [...p, entry]);
-    setAddOpen(false); setAddQuery(''); setAddResults([]);
+    setAdding(true);
+    try {
+      const res = await addWatchlistEntry({
+        drug_name:     item.drug,
+        generic_name:  item.generic,
+        patent_expiry: item.expiry,
+        dosage_form:   item.dosage_form || 'See drug label',
+        category:      item.category,
+      });
+      setWatchlist(p => [...p, res.data]);
+      setAddOpen(false);
+      setAddQuery('');
+      setAddResults([]);
+    } catch (err) {
+      console.error('[Watchlist] add error:', err);
+      alert('Failed to add drug to watchlist. Please try again.');
+    } finally {
+      setAdding(false);
+    }
   };
 
-  // ── Loading screen ────────────────────────────────────────────────────────
+  // ── Loading / Error screens ───────────────────────────────────────────────
   if (loading) return (
     <div className="db-page">
       <Header />
       <div className="db-loader"><div className="db-spin" /><p>Loading your dashboard…</p></div>
+      <Footer />
+    </div>
+  );
+
+  if (error) return (
+    <div className="db-page">
+      <Header />
+      <div className="db-loader">
+        <p style={{ color: '#ef4444' }}>{error}</p>
+        <button className="db-add-btn" onClick={loadDashboard} style={{ marginTop: 12 }}>Retry</button>
+      </div>
       <Footer />
     </div>
   );
@@ -265,10 +320,10 @@ export default function Dashboard() {
 
         {/* ── Stats Row ──────────────────────────────────────────── */}
         <div className="db-stats">
-          <StatCard icon="👁️" value={watchlist.length}  label="Drugs Watched"       sub="in your list"         accent="#667eea" />
-          <StatCard icon="⏰" value={expiringSoon}       label="Expiring in 6mo"     sub="act soon"             accent="#ef4444" />
-          <StatCard icon="✅" value={alreadyExpired}     label="Generics Available"  sub="switch & save"        accent="#10b981" />
-          <StatCard icon="🔔" value={unread}             label="Unread Alerts"       sub="check email too"      accent="#f59e0b" />
+          <StatCard icon="👁️" value={watchlist.length}  label="Drugs Watched"      sub="in your list"    accent="#667eea" />
+          <StatCard icon="⏰" value={expiringSoon}       label="Expiring in 6mo"    sub="act soon"        accent="#ef4444" />
+          <StatCard icon="✅" value={alreadyExpired}     label="Generics Available" sub="switch & save"   accent="#10b981" />
+          <StatCard icon="🔔" value={unread}             label="Unread Alerts"      sub="check email too" accent="#f59e0b" />
         </div>
 
         {/* ── Tabs ───────────────────────────────────────────────── */}
@@ -340,12 +395,12 @@ export default function Dashboard() {
                   ? <p className="db-empty-note">No alerts yet. Add drugs to your watchlist.</p>
                   : <div className="ov-alerts-list">
                       {alerts.slice(0, 3).map(a =>
-                        <AlertItem key={a.id} alert={a} onDismiss={handleDismissAlert} />)}
+                        <AlertItem key={a.id} alert={a} onDismiss={handleDismissAlert} onRead={handleReadAlert} />)}
                     </div>
                 }
               </div>
 
-              {/* Market snapshot teaser — 2 stats only, redirect for more */}
+              {/* Market snapshot teaser */}
               <div className="db-panel ov-insight-panel">
                 <div className="db-panel-head">
                   <h2>📊 Market Snapshot</h2>
@@ -436,7 +491,7 @@ export default function Dashboard() {
             <div className="tab-section-head">
               <div>
                 <h2 className="section-h2">⏳ Next 10 Patent Expirations</h2>
-                <p className="section-p">Global view from FDA Orange Book · as of Mar 31, 2026</p>
+                <p className="section-p">Global view from FDA Orange Book · as of {fmtDate(TODAY)}</p>
               </div>
             </div>
 
@@ -470,7 +525,7 @@ export default function Dashboard() {
                         <td>
                           {inWl
                             ? <span className="exp-watching">👁️ Watching</span>
-                            : <button className="exp-watch-btn" onClick={() => handleAddDrug(item)}>+ Watch</button>
+                            : <button className="exp-watch-btn" onClick={() => handleAddDrug(item)} disabled={adding}>+ Watch</button>
                           }
                         </td>
                       </tr>
@@ -501,7 +556,10 @@ export default function Dashboard() {
                 </p>
               </div>
               {alerts.length > 0 && (
-                <button className="db-clear-btn" onClick={() => setAlerts([])}>Clear All</button>
+                <button className="db-clear-btn" onClick={() => {
+                  Promise.all(alerts.map(a => dismissAlert(a.id))).catch(console.error);
+                  setAlerts([]);
+                }}>Clear All</button>
               )}
             </div>
 
@@ -520,7 +578,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="alerts-full-list">
-                {alerts.map(a => <AlertItem key={a.id} alert={a} onDismiss={handleDismissAlert} />)}
+                {alerts.map(a => <AlertItem key={a.id} alert={a} onDismiss={handleDismissAlert} onRead={handleReadAlert} />)}
               </div>
             )}
           </div>
@@ -563,7 +621,9 @@ export default function Dashboard() {
                       </div>
                       {inWl
                         ? <span className="mr-already">✓ Watching</span>
-                        : <button className="mr-add-btn" onClick={() => handleAddDrug(item)}>+ Add</button>
+                        : <button className="mr-add-btn" onClick={() => handleAddDrug(item)} disabled={adding}>
+                            {adding ? '…' : '+ Add'}
+                          </button>
                       }
                     </div>
                   );
