@@ -409,7 +409,7 @@ export default function Dashboard() {
                 <div className="insight-teaser-row">
                   <div className="insight-teaser">
                     <div className="it-big">208</div>
-                    <div className="it-lbl">patents expiring in 2025</div>
+                    <div className="it-lbl">patents expired in 2025</div>
                     <div className="it-sub">Most in any single year on record</div>
                   </div>
                   <div className="insight-teaser it-accent2">
@@ -421,21 +421,19 @@ export default function Dashboard() {
                 <p className="insight-note">
                   1,254 drugs tracked across 6 categories · FDA Orange Book data
                 </p>
-                <div className="insight-cta-row">
-                  <button className="icta-btn" onClick={() => navigate('/eda')}>📊 Full Market Analysis</button>
-                  <button className="icta-btn icta-predict" onClick={() => navigate('/predict')}>🔮 Predict Expiry</button>
-                </div>
+                
               </div>
 
               {/* Quick actions */}
+              <div className="db-panel ov-insight-panel" style={{ background: 'white' }}>
               <div className="db-panel">
-                <div className="db-panel-head"><h2>🚀 Quick Actions</h2></div>
+                <div className="db-panel-head" style={{ marginBottom: '20px' }}><h2 style={{ fontSize: '20px', fontWeight: '700', color: '#1a1a2e' }}>🚀 Quick Actions</h2></div>
                 <div className="quick-grid">
                   {[
                     { icon: '🏥', label: 'Search by Disease', sub: 'Find drugs for a condition',   path: '/disease-search' },
                     { icon: '💊', label: 'Search by Drug',    sub: 'Generics & alternatives',      path: '/drug-search'    },
-                    { icon: '🔮', label: 'Predict Expiry',    sub: 'AI patent timeline',           path: '/predict'        },
-                    { icon: '📊', label: 'Full Insights',     sub: 'EDA & analytics dashboard',    path: '/eda'            },
+                    { icon: '🔮', label: 'Predict Expiry',    sub: 'AI patent timeline',           path: '/predictions'        },
+                    { icon: '📊', label: 'Full Insights',     sub: 'EDA & analytics dashboard',    path: '/analytics'            },
                   ].map(q => (
                     <button className="quick-tile" key={q.path} onClick={() => navigate(q.path)}>
                       <span className="qt-icon">{q.icon}</span>
@@ -445,7 +443,7 @@ export default function Dashboard() {
                   ))}
                 </div>
               </div>
-
+                  </div>
             </div>
           </div>
         )}
