@@ -1,35 +1,9 @@
 // components/SearchBar/SearchBar.jsx
 import { useState, useEffect, useRef } from 'react';
 import { Search, X, Camera } from 'lucide-react';
-import { searchDrugs } from '../../services/api.js';
+import { searchDrugs, matchDrugFromOCR } from '../../services/api.js';
 import api from '../../services/api.js';
 import './SearchBar.css';
-
-const knownDrugs = [
-  'lipitor', 'atorvastatin', 'torvast',
-  'eliquis', 'apixaban',
-  'metformin', 'glucophage',
-  'advil', 'ibuprofen',
-  'aspirin', 'bayer aspirin',
-  'tylenol', 'acetaminophen',
-  'abraxane', 'paclitaxel',
-  'elcys'
-];
-
-const parseDrugNameFromOCR = (rawText) => {
-  if (!rawText) return null;
-  const lines = rawText
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line.length > 2 && line.length < 50);
-  for (const line of lines) {
-    const cleaned = line.toLowerCase().replace(/[^a-z\s]/g, '').trim();
-    const match = knownDrugs.find(drug => cleaned.includes(drug));
-    if (match) return match.charAt(0).toUpperCase() + match.slice(1);
-  }
-  const fallback = lines.find(line => /^[A-Za-z\s\-]+$/.test(line));
-  return fallback ? fallback.split(' ')[0] : null;
-};
 
 export default function SearchBar() {
   const [query, setQuery] = useState('');
@@ -113,54 +87,53 @@ export default function SearchBar() {
   const handleDragOver = (e) => e.preventDefault();
 
   const extractTextFromImage = async (imageFile) => {
-    console.log('OCR Key:', import.meta.env.VITE_OCR_SPACE_API_KEY);
     setExtracting(true);
     setOcrProgress(0);
     setError('');
     setExtractedDrugName('');
 
     try {
-      // Simulate progress since OCR.space doesn't stream progress
       setOcrProgress(30);
 
+      // Step 1: send image to backend OCR proxy (keeps API key server-side)
       const formData = new FormData();
-      formData.append('file', imageFile);
-      formData.append('language', 'eng');
-      formData.append('isOverlayRequired', 'false');
-      formData.append('detectOrientation', 'true');
-      formData.append('scale', 'true');         // improves accuracy on small text
-      formData.append('OCREngine', '2');        // Engine 2 is more accurate for medicine labels
+      formData.append('image', imageFile);
 
-      const response = await fetch('https://api.ocr.space/parse/image', {
-        method: 'POST',
-        headers: {
-          apikey: import.meta.env.VITE_OCR_SPACE_API_KEY,
-        },
-        body: formData,
-      });
+      const ocrResponse = await fetch(
+        `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/ocr/extract`,
+        { method: 'POST', body: formData }
+      );
 
-      setOcrProgress(80);
+      setOcrProgress(70);
 
-      const data = await response.json();
+      const ocrData = await ocrResponse.json();
 
-      if (data.IsErroredOnProcessing) {
-        throw new Error(data.ErrorMessage?.[0] || 'OCR processing failed');
+      if (!ocrData.success) {
+        throw new Error(ocrData.error || 'OCR processing failed');
       }
 
-      const rawText = data.ParsedResults?.[0]?.ParsedText || '';
+      const rawText = ocrData.parsedText || '';
+
+      // Step 2: ask the backend to match OCR text against the drug database
+      // This replaces the old hardcoded knownDrugs list entirely
+      const matchData = await matchDrugFromOCR(rawText);
       setOcrProgress(100);
 
-      const detectedDrug = parseDrugNameFromOCR(rawText);
-      if (detectedDrug) {
-        setExtractedDrugName(detectedDrug);
-        setQuery(detectedDrug);
-        performSearch(detectedDrug);
+      if (matchData.drugName) {
+        setExtractedDrugName(matchData.drugName);
+        setQuery(matchData.drugName);
+        performSearch(matchData.drugName);
       } else {
         setError('Could not detect a drug name. Try a clearer photo or type manually.');
       }
     } catch (err) {
       console.error('OCR error:', err);
-      setError('Failed to process image. Please try again.');
+      // 404 from /drugs/match means no drug was recognised in the text
+      if (err?.response?.status === 404) {
+        setError('Could not detect a drug name. Try a clearer photo or type manually.');
+      } else {
+        setError('Failed to process image. Please try again.');
+      }
     } finally {
       setExtracting(false);
       setOcrProgress(0);

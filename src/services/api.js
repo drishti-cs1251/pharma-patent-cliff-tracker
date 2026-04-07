@@ -84,6 +84,14 @@ export const searchDrugs = (query) =>
 export const getDrugDetails = (drugId) =>
   api.get(`/drugs/${drugId}`).then(r => r.data);
 
+/**
+ * Send raw OCR text to the backend, which tokenises it and looks up
+ * matching drug names in the database. Returns { success, drugName } or
+ * throws on a non-2xx response.
+ */
+export const matchDrugFromOCR = (text) =>
+  api.post('/drugs/match', { text }).then(r => r.data);
+
 // ── Diseases ──────────────────────────────────────────────────────────────────
 export const getDiseases = () =>
   api.get('/diseases').then(r => r.data);
